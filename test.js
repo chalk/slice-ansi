@@ -1,15 +1,16 @@
+import util from 'util';
 import test from 'ava';
 import chalk from 'chalk';
 import stripAnsi from 'strip-ansi';
-import util from 'util';
+import randomItem from 'random-item';
 import fn from './';
 
 const fixture = chalk.red('the ') + chalk.green('quick ') + chalk.blue('brown ') + chalk.cyan('fox ') + chalk.yellow('jumped ');
 const stripped = stripAnsi(fixture);
 
 function gen(str) {
-	const rand1 = ['rock', 'paper', 'scissors']['012'.charAt(Math.floor(Math.random() * 3))];
-	const rand2 = ['blue', 'green', 'yellow', 'red']['0123'.charAt(Math.floor(Math.random() * 4))];
+	const rand1 = randomItem(['rock', 'paper', 'scissors']);
+	const rand2 = randomItem(['blue', 'green', 'yellow', 'red']);
 	return `${str}:${chalk[rand2](rand1)} `;
 }
 
