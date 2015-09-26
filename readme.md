@@ -1,17 +1,15 @@
 # slice-ansi 
 
-[![Build Status](https://travis-ci.org/chalk/slice-ansi.svg?branch=master)](https://travis-ci.org/chalk/slice-ansi)
+[![Build Status](https://travis-ci.org/vorpaljs/slice-ansi.svg?branch=master)](https://travis-ci.org/vorpaljs/slice-ansi)
 [![XO: Linted](https://img.shields.io/badge/xo-linted-blue.svg)](https://github.com/sindresorhus/xo)
 
 > Slice a string with [ANSI escape codes](http://en.wikipedia.org/wiki/ANSI_escape_code#Colors_and_Styles)
-
 
 ## Install
 
 ```
 $ npm install --save slice-ansi
 ```
-
 
 ## Usage
 

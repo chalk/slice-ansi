@@ -36,9 +36,6 @@ var ESCAPE_CODES = {
 };
 
 function wrapAnsi(code) {
-	if (code === undefined) {
-		throw new Error('wtf: ' + code);
-	}
 	return ESCAPES[0] + '[' + code + 'm';
 }
 
