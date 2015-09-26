@@ -1,4 +1,7 @@
-# slice-ansi [![Build Status](https://travis-ci.org/chalk/slice-ansi.svg?branch=master)](https://travis-ci.org/chalk/slice-ansi)
+# slice-ansi 
+
+[![Build Status](https://travis-ci.org/chalk/slice-ansi.svg?branch=master)](https://travis-ci.org/chalk/slice-ansi)
+[![XO: Linted](https://img.shields.io/badge/xo-linted-blue.svg)](https://github.com/sindresorhus/xo)
 
 > Slice a string with [ANSI escape codes](http://en.wikipedia.org/wiki/ANSI_escape_code#Colors_and_Styles)
 
@@ -24,7 +27,7 @@ console.log(sliceAnsi(input, 20, 30));
 
 ## API
 
-### sliceAnsi(input, columns)
+### sliceAnsi(input, beginSlice[, endSlice])
 
 #### input
 
