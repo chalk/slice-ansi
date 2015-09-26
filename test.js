@@ -28,5 +28,16 @@ test(function (t) {
 	t.assert(util.inspect(fn(fixture, 10, 20)) === b);
 	t.assert(util.inspect(fn(fixture, 3, 20)) === c);
 
+	function gen(str) {
+		var rand1 = ['rock', 'paper', 'scissors']['012'.charAt(Math.floor(Math.random() * 3))];
+		var rand2 = ['blue', 'green', 'yellow', 'red']['0123'.charAt(Math.floor(Math.random() * 4))];
+		return str + ':' + chalk[rand2](rand1) + ' ';
+	}
+
+	var str = gen(1) + gen(2) + gen(3) + gen(4) + gen(5) + gen(6) + gen(7) + gen(8) + gen(9) + gen(10) + gen(11) + gen(12) + gen(13) + gen(14) + gen(15) + gen(1) + gen(2) + gen(3) + gen(4) + gen(5) + gen(6) + gen(7) + gen(8) + gen(9) + gen(10) + gen(11) + gen(12) + gen(13) + gen(14) + gen(15);
+	var native = stripAnsi(str).slice(0, 55);
+	var ansi = stripAnsi(fn(str, 0, 55));
+	t.assert(native === ansi);
+
 	t.end();
 });

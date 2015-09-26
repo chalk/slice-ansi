@@ -36,6 +36,9 @@ var ESCAPE_CODES = {
 };
 
 function wrapAnsi(code) {
+	if (code === undefined) {
+		throw new Error('wtf: ' + code);
+	}
 	return ESCAPES[0] + '[' + code + 'm';
 }
 
@@ -69,7 +72,7 @@ module.exports = function (str, begin, end) {
 			output += wrapAnsi(escapeCode);
 		} else if (visible >= end) {
 			if (escapeCode !== undefined) {
-				output += wrapAnsi(ESCAPE_CODES[escapeCode]);
+				output += wrapAnsi(ESCAPE_CODES[escapeCode] || END_CODE);
 			}
 			break;
 		}
@@ -77,3 +80,4 @@ module.exports = function (str, begin, end) {
 
 	return output;
 };
+
