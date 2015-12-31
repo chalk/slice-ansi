@@ -37,6 +37,4 @@ test(t => {
 	const native = stripAnsi(str).slice(0, 55);
 	const ansi = stripAnsi(fn(str, 0, 55));
 	t.is(native, ansi);
-
-	t.end();
 });
