@@ -54,4 +54,4 @@ The zero-based index at which to end the slice.
 
 ## License
 
-MIT © [David Caccavella](https://githbu.com/dthree)
+MIT © [David Caccavella](https://github.com/dthree)
