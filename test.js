@@ -42,3 +42,7 @@ test(t => {
 test.skip('supports fullwidth characters', t => {
 	t.is(fn('안녕하세', 0, 4), '안녕');
 });
+
+test.skip('supports unicode surrogate pairs', t => {
+	t.is(fn('a\ud83c\ude00bc', 0, 2), 'a\ud83c\ude00');
+});
