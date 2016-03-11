@@ -49,6 +49,7 @@ The zero-based index at which to end the slice.
 ## Related
 
 - [wrap-ansi](https://github.com/chalk/wrap-ansi) - Wordwrap a string with ANSI escape codes
+- [cli-truncate](https://github.com/sindresorhus/cli-truncate) - Truncate a string to a specific width in the terminal
 - [chalk](https://github.com/chalk/chalk) - Terminal string styling done right
 
 
