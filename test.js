@@ -38,3 +38,7 @@ test(t => {
 	const ansi = stripAnsi(fn(str, 0, 55));
 	t.is(native, ansi);
 });
+
+test.skip('supports fullwidth characters', t => {
+	t.is(fn('안녕하세', 0, 4), '안녕');
+});
