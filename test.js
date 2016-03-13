@@ -46,3 +46,7 @@ test.skip('supports fullwidth characters', t => {
 test.skip('supports unicode surrogate pairs', t => {
 	t.is(fn('a\ud83c\ude00bc', 0, 2), 'a\ud83c\ude00');
 });
+
+test.skip('doesn\'t add unnecessary escape codes', t => {
+	t.is(fn('\u001b[31municorn\u001b[39m', 0, 3), '\u001b[31muni\u001b[39m');
+});
