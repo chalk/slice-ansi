@@ -1,58 +1,56 @@
 'use strict';
 
-var ESCAPES = [
-	'\u001b',
-	'\u009b'
+const ESCAPES = [
+	'\u001B',
+	'\u009B'
 ];
 
-var END_CODE = 39;
+const END_CODE = 39;
 
-var ESCAPE_CODES = {
-	0: 0,
-	1: 22,
-	2: 22,
-	3: 23,
-	4: 24,
-	7: 27,
-	8: 28,
-	9: 29,
-	30: 39,
-	31: 39,
-	32: 39,
-	33: 39,
-	34: 39,
-	35: 39,
-	36: 39,
-	37: 39,
-	90: 39,
-	40: 49,
-	41: 49,
-	42: 49,
-	43: 49,
-	44: 49,
-	45: 49,
-	46: 49,
-	47: 49
-};
+const ESCAPE_CODES = new Map([
+	[0, 0],
+	[1, 22],
+	[2, 22],
+	[3, 23],
+	[4, 24],
+	[7, 27],
+	[8, 28],
+	[9, 29],
+	[30, 39],
+	[31, 39],
+	[32, 39],
+	[33, 39],
+	[34, 39],
+	[35, 39],
+	[36, 39],
+	[37, 39],
+	[90, 39],
+	[40, 49],
+	[41, 49],
+	[42, 49],
+	[43, 49],
+	[44, 49],
+	[45, 49],
+	[46, 49],
+	[47, 49]
+]);
 
-function wrapAnsi(code) {
-	return ESCAPES[0] + '[' + code + 'm';
-}
+const wrapAnsi = code => `${ESCAPES[0]}[${code}m`;
 
-module.exports = function (str, begin, end) {
+module.exports = (str, begin, end) => {
 	end = end || str.length;
-	var insideEscape = false;
-	var escapeCode;
-	var visible = 0;
-	var output = '';
+	let insideEscape = false;
+	let escapeCode;
+	let visible = 0;
+	let output = '';
 
-	for (var i = 0; i < str.length; i++) {
-		var leftEscape = false;
-		var x = str[i];
+	for (let i = 0; i < str.length; i++) {
+		let leftEscape = false;
+		const x = str[i];
 
 		if (ESCAPES.indexOf(x) !== -1) {
 			insideEscape = true;
-			var code = /[0-9][^m]*/.exec(str.slice(i, i + 4));
+			const code = /\d[^m]*/.exec(str.slice(i, i + 4));
 			escapeCode = code === END_CODE ? null : code;
 		} else if (insideEscape && x === 'm') {
 			insideEscape = false;
@@ -69,7 +67,7 @@ module.exports = function (str, begin, end) {
 			output += wrapAnsi(escapeCode);
 		} else if (visible >= end) {
 			if (escapeCode !== undefined) {
-				output += wrapAnsi(ESCAPE_CODES[escapeCode] || END_CODE);
+				output += wrapAnsi(ESCAPE_CODES.get(parseInt(escapeCode, 10)) || END_CODE);
 			}
 			break;
 		}
@@ -77,4 +75,3 @@ module.exports = function (str, begin, end) {
 
 	return output;
 };
-

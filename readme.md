@@ -1,12 +1,12 @@
 # slice-ansi [![Build Status](https://travis-ci.org/chalk/slice-ansi.svg?branch=master)](https://travis-ci.org/chalk/slice-ansi) [![XO: Linted](https://img.shields.io/badge/xo-linted-blue.svg)](https://github.com/sindresorhus/xo)
 
-> Slice a string with [ANSI escape codes](http://en.wikipedia.org/wiki/ANSI_escape_code#Colors_and_Styles)
+> Slice a string with [ANSI escape codes](https://en.wikipedia.org/wiki/ANSI_escape_code#Colors_and_Styles)
 
 
 ## Install
 
 ```
-$ npm install --save slice-ansi
+$ npm install slice-ansi
 ```
 
 
@@ -25,7 +25,7 @@ console.log(sliceAnsi(input, 20, 30));
 
 ## API
 
-### sliceAnsi(input, beginSlice[, endSlice])
+### sliceAnsi(input, beginSlice, [endSlice])
 
 #### input
 
@@ -37,13 +37,13 @@ String with ANSI escape codes. Like one styled by [`chalk`](https://github.com/c
 
 Type: `number`
 
-The zero-based index at which to begin the slice.
+Zero-based index at which to begin the slice.
 
 #### endSlice
 
 Type: `number`
 
-The zero-based index at which to end the slice.
+Zero-based index at which to end the slice.
 
 
 ## Related
@@ -53,6 +53,12 @@ The zero-based index at which to end the slice.
 - [chalk](https://github.com/chalk/chalk) - Terminal string styling done right
 
 
+## Maintainers
+
+- [Sindre Sorhus](https://github.com/sindresorhus)
+- [Josh Junon](https://github.com/qix-)
+
+
 ## License
 
-MIT © [David Caccavella](https://github.com/dthree)
+MIT
