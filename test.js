@@ -39,7 +39,7 @@ test(t => {
 	t.is(native, ansi);
 });
 
-test.failing('supports fullwidth characters', t => {
+test('supports fullwidth characters', t => {
 	t.is(m('안녕하세', 0, 4), '안녕');
 });
 
