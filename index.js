@@ -40,7 +40,7 @@ const wrapAnsi = code => `${ESCAPES[0]}[${code}m`;
 module.exports = (str, begin, end) => {
 	const arr = Array.from(str.normalize());
 
-	end = end || arr.length;
+	end = typeof end === 'number' ? end : arr.length;
 
 	let insideEscape = false;
 	let escapeCode;
