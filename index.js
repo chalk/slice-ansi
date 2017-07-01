@@ -68,7 +68,7 @@ module.exports = (str, begin, end) => {
 
 		if (visible > begin && visible <= end) {
 			output += x;
-		} else if (visible === begin && escapeCode !== undefined && escapeCode !== END_CODE) {
+		} else if (visible === begin && !insideEscape && escapeCode !== undefined && escapeCode !== END_CODE) {
 			output += wrapAnsi(escapeCode);
 		} else if (visible >= end) {
 			if (escapeCode !== undefined) {

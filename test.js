@@ -25,8 +25,8 @@ test(t => {
 		}
 	}
 
-	const a = util.inspect('\u001B[31m\u001B[31m\u001B[31m\u001B[31m\u001B[31mthe \u001B[39m\u001B[32mquick \u001B[39m\u001B[34m\u001B[39m');
-	const b = util.inspect('\u001B[32m\u001B[39m\u001B[39m\u001B[39m\u001B[39m\u001B[39m\u001B[34m\u001B[34m\u001B[34m\u001B[34m\u001B[34mbrown \u001B[39m\u001B[36mfox \u001B[39m\u001B[33m\u001B[39m');
+	const a = util.inspect('\u001B[31mthe \u001B[39m\u001B[32mquick \u001B[39m\u001B[34m\u001B[39m');
+	const b = util.inspect('\u001B[32m\u001B[39m\u001B[34mbrown \u001B[39m\u001B[36mfox \u001B[39m\u001B[33m\u001B[39m');
 	const c = util.inspect('\u001B[31m \u001B[39m\u001B[32mquick \u001B[39m\u001B[34mbrown \u001B[39m\u001B[36mfox \u001B[39m\u001B[33m\u001B[39m');
 
 	t.is(util.inspect(m(fixture, 0, 10)), a);
@@ -47,6 +47,6 @@ test('supports unicode surrogate pairs', t => {
 	t.is(m('a\uD83C\uDE00BC', 0, 2), 'a\uD83C\uDE00');
 });
 
-test.failing('doesn\'t add unnecessary escape codes', t => {
+test('doesn\'t add unnecessary escape codes', t => {
 	t.is(m('\u001B[31municorn\u001B[39m', 0, 3), '\u001B[31muni\u001B[39m');
 });
