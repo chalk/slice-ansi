@@ -47,7 +47,10 @@ module.exports = (str, begin, end) => {
 	let visible = 0;
 	let output = '';
 
-	for (const [i, x] of arr.entries()) {
+	for (const item of arr.entries()) {
+		const i = item[0];
+		const x = item[1];
+
 		let leftEscape = false;
 
 		if (ESCAPES.indexOf(x) !== -1) {
