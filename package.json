@@ -40,14 +40,14 @@
     "command-line",
     "text"
   ],
+  "dependencies": {
+    "is-fullwidth-code-point": "^2.0.0"
+  },
   "devDependencies": {
     "ava": "*",
     "chalk": "^1.1.1",
     "random-item": "^1.0.0",
     "strip-ansi": "^4.0.0",
     "xo": "*"
-  },
-  "dependencies": {
-    "is-fullwidth-code-point": "^2.0.0"
   }
 }
