@@ -1,4 +1,5 @@
 'use strict';
+const isFullwidthCodePoint = require('is-fullwidth-code-point');
 
 const ESCAPES = [
 	'\u001B',
@@ -63,6 +64,10 @@ module.exports = (str, begin, end) => {
 		}
 
 		if (!insideEscape && !leftEscape) {
+			++visible;
+		}
+
+		if (isFullwidthCodePoint(x.codePointAt())) {
 			++visible;
 		}
 
