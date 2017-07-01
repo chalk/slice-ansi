@@ -68,7 +68,7 @@ module.exports = (str, begin, end) => {
 			++visible;
 		}
 
-		if (isFullwidthCodePoint(x.codePointAt()) && !ASTRAL_REGEX.test(x)) {
+		if (!ASTRAL_REGEX.test(x) && isFullwidthCodePoint(x.codePointAt())) {
 			++visible;
 		}
 
