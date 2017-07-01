@@ -43,7 +43,7 @@ test.failing('supports fullwidth characters', t => {
 	t.is(m('안녕하세', 0, 4), '안녕');
 });
 
-test.failing('supports unicode surrogate pairs', t => {
+test('supports unicode surrogate pairs', t => {
 	t.is(m('a\uD83C\uDE00BC', 0, 2), 'a\uD83C\uDE00');
 });
 
