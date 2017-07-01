@@ -38,15 +38,17 @@ const ESCAPE_CODES = new Map([
 const wrapAnsi = code => `${ESCAPES[0]}[${code}m`;
 
 module.exports = (str, begin, end) => {
-	end = end || str.length;
+	const arr = Array.from(str.normalize());
+
+	end = end || arr.length;
+
 	let insideEscape = false;
 	let escapeCode;
 	let visible = 0;
 	let output = '';
 
-	for (let i = 0; i < str.length; i++) {
+	for (const [i, x] of arr.entries()) {
 		let leftEscape = false;
-		const x = str[i];
 
 		if (ESCAPES.indexOf(x) !== -1) {
 			insideEscape = true;
