@@ -7,6 +7,7 @@ const ESCAPES = [
 ];
 
 const END_CODE = 39;
+const ASTRAL_REGEX = /[\uD800-\uDBFF][\uDC00-\uDFFF]/;
 
 const ESCAPE_CODES = new Map([
 	[0, 0],
@@ -67,7 +68,7 @@ module.exports = (str, begin, end) => {
 			++visible;
 		}
 
-		if (isFullwidthCodePoint(x.codePointAt())) {
+		if (!ASTRAL_REGEX.test(x) && isFullwidthCodePoint(x.codePointAt())) {
 			++visible;
 		}
 
