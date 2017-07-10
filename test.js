@@ -20,7 +20,6 @@ test(t => {
 		for (let j = 19; j > i; j--) {
 			const nativeSlice = stripped.slice(i, j);
 			const ansiSlice = m(fixture, i, j);
-			console.log(nativeSlice, stripAnsi(ansiSlice));
 			t.is(nativeSlice, stripAnsi(ansiSlice));
 		}
 	}

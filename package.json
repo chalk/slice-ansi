@@ -45,7 +45,7 @@
   },
   "devDependencies": {
     "ava": "*",
-    "chalk": "^1.1.1",
+    "chalk": "^2.0.1",
     "random-item": "^1.0.0",
     "strip-ansi": "^4.0.0",
     "xo": "*"
