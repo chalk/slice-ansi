@@ -1,5 +1,6 @@
 'use strict';
 const isFullwidthCodePoint = require('is-fullwidth-code-point');
+const astralRegex = require('astral-regex');
 
 const ESCAPES = [
 	'\u001B',
@@ -7,7 +8,6 @@ const ESCAPES = [
 ];
 
 const END_CODE = 39;
-const ASTRAL_REGEX = /[\uD800-\uDBFF][\uDC00-\uDFFF]/;
 
 const ESCAPE_CODES = new Map([
 	[0, 0],
@@ -68,7 +68,7 @@ module.exports = (str, begin, end) => {
 			++visible;
 		}
 
-		if (!ASTRAL_REGEX.test(x) && isFullwidthCodePoint(x.codePointAt())) {
+		if (!astralRegex({exact: true}).test(x) && isFullwidthCodePoint(x.codePointAt())) {
 			++visible;
 		}
 
