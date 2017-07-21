@@ -41,6 +41,7 @@
     "text"
   ],
   "dependencies": {
+    "astral-regex": "^1.0.0",
     "is-fullwidth-code-point": "^2.0.0"
   },
   "devDependencies": {
