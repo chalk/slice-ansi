@@ -38,6 +38,14 @@ test(t => {
 	t.is(native, ansi);
 });
 
+test.failing('one by one slices string that ANSI string and ordinary string are mixed', t => {
+	const str = 'a' + chalk.red('bc') + 'd';
+	t.is(m(str, 0, 1), 'a');
+	t.is(m(str, 1, 2), chalk.red('b'));
+	t.is(m(str, 2, 3), chalk.red('c'));
+	t.is(m(str, 3, 4), 'd');
+});
+
 test('supports fullwidth characters', t => {
 	t.is(m('안녕하세', 0, 4), '안녕');
 });
