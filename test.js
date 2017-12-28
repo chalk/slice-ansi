@@ -49,3 +49,11 @@ test('supports unicode surrogate pairs', t => {
 test('doesn\'t add unnecessary escape codes', t => {
 	t.is(m('\u001B[31municorn\u001B[39m', 0, 3), '\u001B[31muni\u001B[39m');
 });
+
+test.failing('can slice a normal character before a colored character', t => {
+	t.is(m('a\u001B[31mb\u001B[39m', 0, 1), 'a');
+});
+
+test.failing('can slice a normal character after a colored character', t => {
+	t.is(m('\u001B[31ma\u001B[39mb', 1, 2), 'b');
+});
