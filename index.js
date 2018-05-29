@@ -13,7 +13,7 @@ const END_CODE = 39;
 const wrapAnsi = code => `${ESCAPES[0]}[${code}m`;
 
 module.exports = (str, begin, end) => {
-	const arr = Array.from(str.normalize());
+	const arr = [...str.normalize()];
 
 	end = typeof end === 'number' ? end : arr.length;
 
@@ -22,13 +22,10 @@ module.exports = (str, begin, end) => {
 	let visible = 0;
 	let output = '';
 
-	for (const item of arr.entries()) {
-		const i = item[0];
-		const x = item[1];
-
+	for (const [i, x] of arr.entries()) {
 		let leftEscape = false;
 
-		if (ESCAPES.indexOf(x) !== -1) {
+		if (ESCAPES.includes(x)) {
 			insideEscape = true;
 			const code = /\d[^m]*/.exec(str.slice(i, i + 4));
 			escapeCode = code === END_CODE ? null : code;
