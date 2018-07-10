@@ -18,7 +18,7 @@ module.exports = (str, begin, end) => {
 	end = typeof end === 'number' ? end : arr.length;
 
 	let insideEscape = false;
-	let escapeCode;
+	let escapeCode = null;
 	let visible = 0;
 	let output = '';
 
@@ -44,10 +44,10 @@ module.exports = (str, begin, end) => {
 
 		if (visible > begin && visible <= end) {
 			output += x;
-		} else if (visible === begin && !insideEscape && escapeCode !== undefined && escapeCode !== END_CODE) {
+		} else if (visible === begin && !insideEscape && escapeCode !== null && escapeCode !== END_CODE) {
 			output += wrapAnsi(escapeCode);
 		} else if (visible >= end) {
-			if (escapeCode !== undefined) {
+			if (escapeCode !== null) {
 				output += wrapAnsi(ansiStyles.codes.get(parseInt(escapeCode, 10)) || END_CODE);
 			}
 			break;

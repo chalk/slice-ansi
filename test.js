@@ -57,3 +57,9 @@ test.failing('can slice a normal character before a colored character', t => {
 test.failing('can slice a normal character after a colored character', t => {
 	t.is(m('\u001B[31ma\u001B[39mb', 1, 2), 'b');
 });
+
+test('weird null issue', t => {
+	const s = '\u001B[1mautotune.flipCoin("easy as") ? 🎂 : 🍰 \u001B[33m★\u001B[39m\u001B[22m';
+	const result = m(s, 38);
+	t.is(result.search('null'), -1);
+});
