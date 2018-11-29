@@ -51,5 +51,5 @@ test('doesn\'t add unnecessary escape codes', t => {
 });
 
 test('support true color escape sequences', t => {
-	t.is(m('\u001B[[1m\u001B[[48;2;255;255;255m\u001B[[38;2;255;0;0municorn\u001B[[39m\u001B[[49m\u001B[[22m', 0, 3), '\u001B[1m\u001B[48;2;255;255;25m\u001B[38;2;255;0;0muni\u001B[39m');
+	t.is(sliceAnsi('\u001B[[1m\u001B[[48;2;255;255;255m\u001B[[38;2;255;0;0municorn\u001B[[39m\u001B[[49m\u001B[[22m', 0, 3), '\u001B[1m\u001B[48;2;255;255;25m\u001B[38;2;255;0;0muni\u001B[39m');
 });
