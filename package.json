@@ -42,10 +42,10 @@
 		"is-fullwidth-code-point": "^2.0.0"
 	},
 	"devDependencies": {
-		"ava": "^0.25.0",
-		"chalk": "^2.0.1",
+		"ava": "^1.1.0",
+		"chalk": "^2.4.2",
 		"random-item": "^1.0.0",
 		"strip-ansi": "^5.0.0",
-		"xo": "^0.23.0"
+		"xo": "^0.24.0"
 	}
 }

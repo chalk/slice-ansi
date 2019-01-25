@@ -14,7 +14,7 @@ function gen(str) {
 	return `${str}:${chalk[rand2](rand1)} `;
 }
 
-test(t => {
+test('main', t => {
 	// The slice should behave exactly as a regular JS slice behaves
 	for (let i = 0; i < 20; i++) {
 		for (let j = 19; j > i; j--) {

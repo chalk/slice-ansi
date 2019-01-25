@@ -50,6 +50,7 @@ module.exports = (str, begin, end) => {
 			if (escapeCode !== null) {
 				output += wrapAnsi(ansiStyles.codes.get(parseInt(escapeCode, 10)) || END_CODE);
 			}
+
 			break;
 		}
 	}
