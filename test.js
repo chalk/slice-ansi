@@ -69,7 +69,7 @@ test('support true color escape sequences', t => {
 });
 
 test.failing('doesn\'t add extra escapes', t => {
-	const s = '\u001b[30m\u001b[43m RUNS \u001b[49m\u001b[39m  \u001b[32mtest\u001b[39m';
-	t.is(sliceAnsi(s, 0, 7), '\u001b[30m\u001b[43m RUNS \u001b[49m\u001b[39m ');
-	t.is(sliceAnsi(s, 0, 8), '\u001b[30m\u001b[43m RUNS \u001b[49m\u001b[39m  ');
+	const s = '\u001B[30m\u001B[43m RUNS \u001B[49m\u001B[39m  \u001B[32mtest\u001B[39m';
+	t.is(sliceAnsi(s, 0, 7), '\u001B[30m\u001B[43m RUNS \u001B[49m\u001B[39m ');
+	t.is(sliceAnsi(s, 0, 8), '\u001B[30m\u001B[43m RUNS \u001B[49m\u001B[39m  ');
 });
