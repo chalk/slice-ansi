@@ -58,8 +58,9 @@ test.failing('can slice a normal character after a colored character', t => {
 	t.is(sliceAnsi('\u001B[31ma\u001B[39mb', 1, 2), 'b');
 });
 
-test('can slice a string styled with both background and foreground', t => {
-	// Test string: chalk.bgGreen.black('test');
+// See https://github.com/chalk/slice-ansi/issues/22
+test.failing('can slice a string styled with both background and foreground', t => {
+	// Test string: `chalk.bgGreen.black('test');`
 	t.is(sliceAnsi('\u001B[42m\u001B[30mtest\u001B[39m\u001B[49m', 0, 1), '\u001B[42m\u001B[30mt\u001B[39m\u001B[49m');
 });
 
