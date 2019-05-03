@@ -24,9 +24,9 @@ test('main', t => {
 		}
 	}
 
-	const a = util.inspect('\u001B[31mthe \u001B[39m\u001B[32mquick \u001B[39m\u001B[34m\u001B[39m\u001B[36m\u001B[39m\u001B[33m\u001B[39m');
-	const b = util.inspect('\u001B[32m\u001B[39m\u001B[34mbrown \u001B[39m\u001B[36mfox \u001B[39m\u001B[33m\u001B[39m');
-	const c = util.inspect('\u001B[31m \u001B[39m\u001B[32mquick \u001B[39m\u001B[34mbrown \u001B[39m\u001B[36mfox \u001B[39m\u001B[33m\u001B[39m');
+	const a = util.inspect('\u001B[31mthe \u001B[39m\u001B[32mquick \u001B[39m');
+	const b = util.inspect('\u001B[32m\u001B[39m\u001B[34mbrown \u001B[39m\u001B[36mfox \u001B[39m');
+	const c = util.inspect('\u001B[31m \u001B[39m\u001B[32mquick \u001B[39m\u001B[34mbrown \u001B[39m\u001B[36mfox \u001B[39m');
 
 	t.is(util.inspect(sliceAnsi(fixture, 0, 10)), a);
 	t.is(util.inspect(sliceAnsi(fixture, 10, 20)), b);
@@ -51,15 +51,17 @@ test('doesn\'t add unnecessary escape codes', t => {
 });
 
 test('can slice a normal character before a colored character', t => {
-	t.is(sliceAnsi('a\u001B[31mb\u001B[39m', 0, 1), 'a\u001B[31m\u001B[39m');
+	t.is(sliceAnsi('a\u001B[31mb\u001B[39m', 0, 1), 'a');
 });
 
 test('can slice a normal character after a colored character', t => {
 	t.is(sliceAnsi('\u001B[31ma\u001B[39mb', 1, 2), '\u001B[31m\u001B[39mb');
 });
 
+// See https://github.com/chalk/slice-ansi/issues/22
 test('can slice a string styled with both background and foreground', t => {
-	t.is(sliceAnsi('\u001B[42m\u001B[30mtest\u001B[39m\u001B[49m', 0, 1), '\u001B[42m\u001B[30mt\u001B[39m\u001B[49m');
+	// Test string: `chalk.bgGreen.black('test');`
+	t.is(sliceAnsi('\u001B[42m\u001B[30mtest\u001B[39m\u001B[49m', 0, 1), '\u001B[42m\u001B[30mt\u001B[49m\u001B[39m');
 });
 
 test('weird null issue', t => {
@@ -69,11 +71,12 @@ test('weird null issue', t => {
 });
 
 test('support true color escape sequences', t => {
-	t.is(sliceAnsi('\u001B[[1m\u001B[[48;2;255;255;255m\u001B[[38;2;255;0;0municorn\u001B[[39m\u001B[[49m\u001B[[22m', 0, 3), '\u001B[1m\u001B[48;2;255;255;25m\u001B[38;2;255;0;0muni\u001B[39m\u001B[49m\u001B[22m');
+	t.is(sliceAnsi('\u001B[1m\u001B[48;2;255;255;255m\u001B[38;2;255;0;0municorn\u001B[39m\u001B[49m\u001B[22m', 0, 3), '\u001B[1m\u001B[48;2;255;255;255m\u001B[38;2;255;0;0muni\u001B[22m\u001B[49m\u001B[39m');
 });
 
+// See https://github.com/chalk/slice-ansi/issues/24
 test('doesn\'t add extra escapes', t => {
 	const output = `${chalk.black.bgYellow(' RUNS ')}  ${chalk.green('test')}`;
-	t.is(sliceAnsi(output, 0, 7), `${chalk.black.bgYellow(' RUNS ')} \u001B[32m\u001B[39m`);
-	t.is(sliceAnsi(output, 0, 8), `${chalk.black.bgYellow(' RUNS ')}  \u001B[32m\u001B[39m`);
+	t.is(sliceAnsi(output, 0, 7), `${chalk.black.bgYellow(' RUNS ')} `);
+	t.is(sliceAnsi(output, 0, 8), `${chalk.black.bgYellow(' RUNS ')}  `);
 });
