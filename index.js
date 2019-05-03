@@ -1,16 +1,15 @@
 'use strict';
 const isFullwidthCodePoint = require('is-fullwidth-code-point');
 const astralRegex = require('astral-regex');
-const ansiStyles = require('ansi-styles');
 
-const ESCAPES = [
+const escapes = [
 	'\u001B',
 	'\u009B'
 ];
 
-const END_CODE = 39;
+const endCodes = [39, 49];
 
-const wrapAnsi = code => `${ESCAPES[0]}[${code}m`;
+const wrapAnsi = code => `${escapes[0]}[${code}m`;
 
 module.exports = (str, begin, end) => {
 	const arr = [...str.normalize()];
@@ -25,10 +24,10 @@ module.exports = (str, begin, end) => {
 	for (const [i, x] of arr.entries()) {
 		let leftEscape = false;
 
-		if (ESCAPES.includes(x)) {
+		if (escapes.includes(x)) {
 			insideEscape = true;
 			const code = /\d[^m]*/.exec(str.slice(i, i + 18));
-			escapeCode = code === END_CODE ? null : code;
+			escapeCode = endCodes.includes(code) ? null : code;
 		} else if (insideEscape && x === 'm') {
 			insideEscape = false;
 			leftEscape = true;
@@ -43,15 +42,13 @@ module.exports = (str, begin, end) => {
 		}
 
 		if (visible > begin && visible <= end) {
+			escapeCode = null;
 			output += x;
-		} else if (visible === begin && !insideEscape && escapeCode !== null && escapeCode !== END_CODE) {
+		} else if (visible === begin && !insideEscape && escapeCode !== null && !endCodes.includes(escapeCode)) {
 			output += wrapAnsi(escapeCode);
-		} else if (visible >= end) {
-			if (escapeCode !== null) {
-				output += wrapAnsi(ansiStyles.codes.get(parseInt(escapeCode, 10)) || END_CODE);
-			}
-
-			break;
+		} else if (visible >= end && escapeCode !== null) {
+			output += wrapAnsi(parseInt(escapeCode, 10));
+			escapeCode = null;
 		}
 	}
 
