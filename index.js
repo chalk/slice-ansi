@@ -12,42 +12,42 @@ const END_CODE = 39;
 
 const wrapAnsi = code => `${ESCAPES[0]}[${code}m`;
 
-module.exports = (str, begin, end) => {
-	const arr = [...str.normalize()];
+module.exports = (string, begin, end) => {
+	const characters = [...string.normalize()];
 
-	end = typeof end === 'number' ? end : arr.length;
+	end = typeof end === 'number' ? end : characters.length;
 
-	let insideEscape = false;
-	let escapeCode = null;
+	let isInsideEscape = false;
+	let escapeCode;
 	let visible = 0;
 	let output = '';
 
-	for (const [i, x] of arr.entries()) {
+	for (const [index, character] of characters.entries()) {
 		let leftEscape = false;
 
-		if (ESCAPES.includes(x)) {
-			insideEscape = true;
-			const code = /\d[^m]*/.exec(str.slice(i, i + 18));
-			escapeCode = code === END_CODE ? null : code;
-		} else if (insideEscape && x === 'm') {
-			insideEscape = false;
+		if (ESCAPES.includes(character)) {
+			isInsideEscape = true;
+			const code = /\d[^m]*/.exec(string.slice(index, index + 18));
+			escapeCode = code === END_CODE ? undefined : code;
+		} else if (isInsideEscape && character === 'm') {
+			isInsideEscape = false;
 			leftEscape = true;
 		}
 
-		if (!insideEscape && !leftEscape) {
+		if (!isInsideEscape && !leftEscape) {
 			++visible;
 		}
 
-		if (!astralRegex({exact: true}).test(x) && isFullwidthCodePoint(x.codePointAt())) {
+		if (!astralRegex({exact: true}).test(character) && isFullwidthCodePoint(character.codePointAt())) {
 			++visible;
 		}
 
 		if (visible > begin && visible <= end) {
-			output += x;
-		} else if (visible === begin && !insideEscape && escapeCode !== null && escapeCode !== END_CODE) {
+			output += character;
+		} else if (visible === begin && !isInsideEscape && escapeCode !== undefined && escapeCode !== END_CODE) {
 			output += wrapAnsi(escapeCode);
 		} else if (visible >= end) {
-			if (escapeCode !== null) {
+			if (escapeCode !== undefined) {
 				output += wrapAnsi(ansiStyles.codes.get(parseInt(escapeCode, 10)) || END_CODE);
 			}
 
