@@ -8,10 +8,10 @@ import sliceAnsi from '.';
 const fixture = chalk.red('the ') + chalk.green('quick ') + chalk.blue('brown ') + chalk.cyan('fox ') + chalk.yellow('jumped ');
 const stripped = stripAnsi(fixture);
 
-function gen(str) {
+function generate(string) {
 	const rand1 = randomItem(['rock', 'paper', 'scissors']);
 	const rand2 = randomItem(['blue', 'green', 'yellow', 'red']);
-	return `${str}:${chalk[rand2](rand1)} `;
+	return `${string}:${chalk[rand2](rand1)} `;
 }
 
 test('main', t => {
@@ -32,7 +32,7 @@ test('main', t => {
 	t.is(util.inspect(sliceAnsi(fixture, 10, 20)), b);
 	t.is(util.inspect(sliceAnsi(fixture, 3, 20)), c);
 
-	const str = gen(1) + gen(2) + gen(3) + gen(4) + gen(5) + gen(6) + gen(7) + gen(8) + gen(9) + gen(10) + gen(11) + gen(12) + gen(13) + gen(14) + gen(15) + gen(1) + gen(2) + gen(3) + gen(4) + gen(5) + gen(6) + gen(7) + gen(8) + gen(9) + gen(10) + gen(11) + gen(12) + gen(13) + gen(14) + gen(15);
+	const str = generate(1) + generate(2) + generate(3) + generate(4) + generate(5) + generate(6) + generate(7) + generate(8) + generate(9) + generate(10) + generate(11) + generate(12) + generate(13) + generate(14) + generate(15) + generate(1) + generate(2) + generate(3) + generate(4) + generate(5) + generate(6) + generate(7) + generate(8) + generate(9) + generate(10) + generate(11) + generate(12) + generate(13) + generate(14) + generate(15);
 	const native = stripAnsi(str).slice(0, 55);
 	const ansi = stripAnsi(sliceAnsi(str, 0, 55));
 	t.is(native, ansi);
