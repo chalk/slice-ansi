@@ -25,7 +25,7 @@ test('main', t => {
 	}
 
 	const a = util.inspect('\u001B[31mthe \u001B[39m\u001B[32mquick \u001B[39m');
-	const b = util.inspect('\u001B[32m\u001B[39m\u001B[34mbrown \u001B[39m\u001B[36mfox \u001B[39m');
+	const b = util.inspect('\u001B[34mbrown \u001B[39m\u001B[36mfox \u001B[39m');
 	const c = util.inspect('\u001B[31m \u001B[39m\u001B[32mquick \u001B[39m\u001B[34mbrown \u001B[39m\u001B[36mfox \u001B[39m');
 
 	t.is(util.inspect(sliceAnsi(fixture, 0, 10)), a);
@@ -55,7 +55,7 @@ test('can slice a normal character before a colored character', t => {
 });
 
 test('can slice a normal character after a colored character', t => {
-	t.is(sliceAnsi('\u001B[31ma\u001B[39mb', 1, 2), '\u001B[31m\u001B[39mb');
+	t.is(sliceAnsi('\u001B[31ma\u001B[39mb', 1, 2), 'b');
 });
 
 // See https://github.com/chalk/slice-ansi/issues/22

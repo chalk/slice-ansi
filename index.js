@@ -10,6 +10,33 @@ const ESCAPES = [
 
 const wrapAnsi = code => `${ESCAPES[0]}[${code}m`;
 
+const checkAnsi = (ansiCodes, isEscapes) => {
+	let output = '';
+	ansiCodes = [...ansiCodes];
+
+	for (let ansiCode of ansiCodes) {
+		const ansiCodeOrigin = ansiCode;
+		if (ansiCode.match(';')) {
+			ansiCode = ansiCode.split(';')[0][0] + '0';
+		}
+
+		const item = ansiStyles.codes.get(parseInt(ansiCode, 10));
+		if (item) {
+			const indexEscape = ansiCodes.indexOf(item.toString());
+			if (indexEscape >= 0) {
+				ansiCodes.splice(indexEscape, 1);
+			} else {
+				output += wrapAnsi(isEscapes ? item : ansiCodeOrigin);
+			}
+		} else if (isEscapes) {
+			output += wrapAnsi(0);
+			break;
+		}
+	}
+
+	return output;
+};
+
 module.exports = (string, begin, end) => {
 	const characters = [...string.normalize()];
 	const ansiCodes = [];
@@ -28,7 +55,7 @@ module.exports = (string, begin, end) => {
 			isInsideEscape = true;
 			const code = /\d[^m]*/.exec(string.slice(index, index + 18));
 			ansiCode = code && code.length > 0 ? code[0] : undefined;
-			if (ansiCode !== null) {
+			if (ansiCode) {
 				ansiCodes.push(ansiCode);
 			}
 		} else if (isInsideEscape && character === 'm') {
@@ -47,27 +74,9 @@ module.exports = (string, begin, end) => {
 		if (visible > begin && visible <= end) {
 			output += character;
 		} else if (visible === begin && !isInsideEscape && ansiCode !== undefined) {
-			output += wrapAnsi(ansiCode);
+			output = checkAnsi(ansiCodes);
 		} else if (visible >= end) {
-			for (let ansiCode of ansiCodes) {
-				if (aansiCode.match(';')) {
-					aansiCode = aansiCode.split(';')[0][0] + '0';
-				}
-
-				const item = ansiStyles.codes.get(parseInt(aansiCode, 10));
-				if (item) {
-					const indexColor = ansiCodes.indexOf(item.toString());
-					if (indexColor >= 0) {
-						ansiCodes.splice(indexColor, 1);
-					} else {
-						output += wrapAnsi(item);
-					}
-				} else {
-					output += wrapAnsi(0);
-					break;
-				}
-			}
-
+			output += checkAnsi(ansiCodes, true);
 			break;
 		}
 	}
