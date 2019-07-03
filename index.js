@@ -49,7 +49,7 @@ module.exports = (string, begin, end) => {
 		} else if (visible === begin && !isInsideEscape && ansiCode !== undefined) {
 			output += wrapAnsi(ansiCode);
 		} else if (visible >= end) {
-			for (let aansiCode of ansiCodes) {
+			for (let ansiCode of ansiCodes) {
 				if (aansiCode.match(';')) {
 					aansiCode = aansiCode.split(';')[0][0] + '0';
 				}
