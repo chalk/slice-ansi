@@ -64,6 +64,17 @@ test('can slice a string styled with both background and foreground', t => {
 	t.is(sliceAnsi('\u001B[42m\u001B[30mtest\u001B[39m\u001B[49m', 0, 1), '\u001B[42m\u001B[30mt\u001B[39m\u001B[49m');
 });
 
+test('can slice a string styled with modifier', t => {
+	// Test string: `chalk.underline('test');`
+	t.is(sliceAnsi('\u001B[4mtest\u001B[24m', 0, 1), '\u001B[4mt\u001B[24m');
+});
+
+test('can slice a string with unknown ANSI color', t => {
+	t.is(sliceAnsi('\u001B[20mTEST\u001B[49m', 0, 4), '\u001B[20mTEST\u001B[0m');
+	t.is(sliceAnsi('\u001B[1001mTEST\u001B[49m', 0, 3), '\u001B[1001mTES\u001B[0m');
+	t.is(sliceAnsi('\u001B[1001mTEST\u001B[49m', 0, 2), '\u001B[1001mTE\u001B[0m');
+});
+
 test('weird null issue', t => {
 	const s = '\u001B[1mautotune.flipCoin("easy as") ? 🎂 : 🍰 \u001B[33m★\u001B[39m\u001B[22m';
 	const result = sliceAnsi(s, 38);
@@ -79,4 +90,5 @@ test('doesn\'t add extra escapes', t => {
 	const output = `${chalk.black.bgYellow(' RUNS ')}  ${chalk.green('test')}`;
 	t.is(sliceAnsi(output, 0, 7), `${chalk.black.bgYellow(' RUNS ')} `);
 	t.is(sliceAnsi(output, 0, 8), `${chalk.black.bgYellow(' RUNS ')}  `);
+	t.is(sliceAnsi('\u001B[31m' + output, 0, 4), `\u001B[31m${chalk.black.bgYellow(' RUN')}`);
 });

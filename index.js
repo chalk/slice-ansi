@@ -31,12 +31,17 @@ const checkAnsi = (ansiCodes, isEscapes, endAnsiCode) => {
 		} else if (isEscapes) {
 			output.push(wrapAnsi(0));
 			break;
+		} else {
+			output.push(wrapAnsi(ansiCodeOrigin));
 		}
 	}
 
-	if (endAnsiCode !== undefined) {
-		const fistEscapeCode = wrapAnsi(ansiStyles.codes.get(parseInt(endAnsiCode, 10)));
-		output = output.reduce((current, next) => next === fistEscapeCode ? [next, ...current] : [...current, next], []);
+	if (isEscapes) {
+		output = output.filter((element, index) => output.indexOf(element) === index);
+		if (endAnsiCode !== undefined) {
+			const fistEscapeCode = wrapAnsi(ansiStyles.codes.get(parseInt(endAnsiCode, 10)));
+			output = output.reduce((current, next) => next === fistEscapeCode ? [next, ...current] : [...current, next], []);
+		}
 	}
 
 	return output.join('');
