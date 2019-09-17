@@ -8,17 +8,53 @@ const ESCAPES = [
 	'\u009B'
 ];
 
-const END_CODE = 39;
-
 const wrapAnsi = code => `${ESCAPES[0]}[${code}m`;
+
+const checkAnsi = (ansiCodes, isEscapes, endAnsiCode) => {
+	let output = [];
+	ansiCodes = [...ansiCodes];
+
+	for (let ansiCode of ansiCodes) {
+		const ansiCodeOrigin = ansiCode;
+		if (ansiCode.match(';')) {
+			ansiCode = ansiCode.split(';')[0][0] + '0';
+		}
+
+		const item = ansiStyles.codes.get(parseInt(ansiCode, 10));
+		if (item) {
+			const indexEscape = ansiCodes.indexOf(item.toString());
+			if (indexEscape >= 0) {
+				ansiCodes.splice(indexEscape, 1);
+			} else {
+				output.push(wrapAnsi(isEscapes ? item : ansiCodeOrigin));
+			}
+		} else if (isEscapes) {
+			output.push(wrapAnsi(0));
+			break;
+		} else {
+			output.push(wrapAnsi(ansiCodeOrigin));
+		}
+	}
+
+	if (isEscapes) {
+		output = output.filter((element, index) => output.indexOf(element) === index);
+		if (endAnsiCode !== undefined) {
+			const fistEscapeCode = wrapAnsi(ansiStyles.codes.get(parseInt(endAnsiCode, 10)));
+			output = output.reduce((current, next) => next === fistEscapeCode ? [next, ...current] : [...current, next], []);
+		}
+	}
+
+	return output.join('');
+};
 
 module.exports = (string, begin, end) => {
 	const characters = [...string.normalize()];
+	const ansiCodes = [];
 
 	end = typeof end === 'number' ? end : characters.length;
 
 	let isInsideEscape = false;
-	let escapeCode;
+	let ansiCode;
 	let visible = 0;
 	let output = '';
 
@@ -26,9 +62,14 @@ module.exports = (string, begin, end) => {
 		let leftEscape = false;
 
 		if (ESCAPES.includes(character)) {
-			isInsideEscape = true;
 			const code = /\d[^m]*/.exec(string.slice(index, index + 18));
-			escapeCode = code === END_CODE ? undefined : code;
+			ansiCode = code && code.length > 0 ? code[0] : undefined;
+			if (visible < end) {
+				isInsideEscape = true;
+				if (ansiCode !== undefined) {
+					ansiCodes.push(ansiCode);
+				}
+			}
 		} else if (isInsideEscape && character === 'm') {
 			isInsideEscape = false;
 			leftEscape = true;
@@ -44,13 +85,10 @@ module.exports = (string, begin, end) => {
 
 		if (visible > begin && visible <= end) {
 			output += character;
-		} else if (visible === begin && !isInsideEscape && escapeCode !== undefined && escapeCode !== END_CODE) {
-			output += wrapAnsi(escapeCode);
+		} else if (visible === begin && !isInsideEscape && ansiCode !== undefined) {
+			output = checkAnsi(ansiCodes);
 		} else if (visible >= end) {
-			if (escapeCode !== undefined) {
-				output += wrapAnsi(ansiStyles.codes.get(parseInt(escapeCode, 10)) || END_CODE);
-			}
-
+			output += checkAnsi(ansiCodes, true, ansiCode);
 			break;
 		}
 	}
