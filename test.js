@@ -92,3 +92,8 @@ test('doesn\'t add extra escapes', t => {
 	t.is(sliceAnsi(output, 0, 8), `${chalk.black.bgYellow(' RUNS ')}  `);
 	t.is(sliceAnsi('\u001B[31m' + output, 0, 4), `\u001B[31m${chalk.black.bgYellow(' RUN')}`);
 });
+
+// See https://github.com/chalk/slice-ansi/issues/26
+test.failing('does not lose fullwidth characters', t => {
+	t.is(sliceAnsi('古古test', 0), '古古test');
+});
