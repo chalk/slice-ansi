@@ -51,8 +51,7 @@ module.exports = (string, begin, end) => {
 	const characters = [...string.normalize()];
 	const ansiCodes = [];
 
-	end = typeof end === 'number' ? end : characters.length;
-
+	let stringEnd = typeof end === 'number' ? end : characters.length;
 	let isInsideEscape = false;
 	let ansiCode;
 	let visible = 0;
@@ -64,7 +63,7 @@ module.exports = (string, begin, end) => {
 		if (ESCAPES.includes(character)) {
 			const code = /\d[^m]*/.exec(string.slice(index, index + 18));
 			ansiCode = code && code.length > 0 ? code[0] : undefined;
-			if (visible < end) {
+			if (visible < stringEnd) {
 				isInsideEscape = true;
 				if (ansiCode !== undefined) {
 					ansiCodes.push(ansiCode);
@@ -81,13 +80,17 @@ module.exports = (string, begin, end) => {
 
 		if (!astralRegex({exact: true}).test(character) && isFullwidthCodePoint(character.codePointAt())) {
 			++visible;
+
+			if (typeof end !== 'number') {
+				++stringEnd;
+			}
 		}
 
-		if (visible > begin && visible <= end) {
+		if (visible > begin && visible <= stringEnd) {
 			output += character;
 		} else if (visible === begin && !isInsideEscape && ansiCode !== undefined) {
 			output = checkAnsi(ansiCodes);
-		} else if (visible >= end) {
+		} else if (visible >= stringEnd) {
 			output += checkAnsi(ansiCodes, true, ansiCode);
 			break;
 		}
