@@ -97,8 +97,3 @@ test('doesn\'t add extra escapes', t => {
 test.failing('does not lose fullwidth characters', t => {
 	t.is(sliceAnsi('古古test', 0), '古古test');
 });
-
-// See https://github.com/chalk/slice-ansi/pull/27#issuecomment-533216774
-test('does not perform string normalization', t => {
-	t.is(sliceAnsi('\u006E\u0303test', 0), '\u006E\u0303test');
-});
