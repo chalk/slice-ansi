@@ -48,7 +48,7 @@ const checkAnsi = (ansiCodes, isEscapes, endAnsiCode) => {
 };
 
 module.exports = (string, begin, end) => {
-	const characters = [...string.normalize()];
+	const characters = [...string];
 	const ansiCodes = [];
 
 	end = typeof end === 'number' ? end : characters.length;
