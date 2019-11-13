@@ -54,7 +54,7 @@ module.exports = (string, begin, end) => {
 	if (typeof end !== 'number') {
 		end = characters.length;
 		for (const character of characters.entries()) {
-			if (isFullwidthCodePoint(character.codePointAt())) {
+			if (isFullwidthCodePoint(character[1].codePointAt())) {
 				++end;
 			}
 		}
