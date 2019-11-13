@@ -94,6 +94,12 @@ test('doesn\'t add extra escapes', t => {
 });
 
 // See https://github.com/chalk/slice-ansi/issues/26
-test.failing('does not lose fullwidth characters', t => {
+test('does not lose fullwidth characters', t => {
 	t.is(sliceAnsi('古古test', 0), '古古test');
 });
+
+test('fullwidth characters + ANSI codes', t => {
+	t.is(sliceAnsi('\u001B[31m古古test\u001B[39m', 3), '\u001B[31m古test\u001B[39m');
+	t.is(sliceAnsi('\u001B[31m古古test\u001B[39m', 3, 4), '\u001B[31m古\u001B[39m');
+});
+

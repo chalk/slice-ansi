@@ -51,10 +51,12 @@ module.exports = (string, begin, end) => {
 	const characters = [...string];
 	const ansiCodes = [];
 
-	if(typeof end !== 'number') {
+	if (typeof end !== 'number') {
 		end = characters.length;
-		for (const [index, character] of characters.entries()) {
-			if(isFullwidthCodePoint(character.codePointAt())) ++end;
+		for (const character of characters.entries()) {
+			if (isFullwidthCodePoint(character.codePointAt())) {
+				++end;
+			}
 		}
 	}
 
@@ -90,12 +92,14 @@ module.exports = (string, begin, end) => {
 		}
 
 		if (visible > begin && visible <= end) {
-			if(!beginned) {
+			if (!beginned) {
 				beginned = true;
-				if(!isInsideEscape && ansiCode !== undefined)
+				if (!isInsideEscape && ansiCode !== undefined) {
 					output = checkAnsi(ansiCodes);
-      		}
-			output += character; 
+				}
+			}
+
+			output += character;
 		} else if (visible >= end) {
 			output += checkAnsi(ansiCodes, true, ansiCode);
 			break;
