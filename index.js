@@ -64,7 +64,7 @@ module.exports = (string, begin, end) => {
 	let ansiCode;
 	let visible = 0;
 	let output = '';
-	let beginned = false;
+	let isTextStarted = false;
 
 	for (const [index, character] of characters.entries()) {
 		let leftEscape = false;
@@ -92,8 +92,8 @@ module.exports = (string, begin, end) => {
 		}
 
 		if (visible > begin && visible <= end) {
-			if (!beginned) {
-				beginned = true;
+			if (!isTextStarted) {
+				isTextStarted = true;
 				if (!isInsideEscape && ansiCode !== undefined) {
 					output = checkAnsi(ansiCodes);
 				}

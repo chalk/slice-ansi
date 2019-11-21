@@ -37,9 +37,8 @@
 		"text"
 	],
 	"dependencies": {
-		"ansi-styles": "^4.2.0",
+		"ansi-styles": "^4.0.0",
 		"astral-regex": "^2.0.0",
-		"fullwidth": "^1.2.0",
 		"is-fullwidth-code-point": "^3.0.0"
 	},
 	"devDependencies": {
