@@ -75,11 +75,9 @@ module.exports = (string, begin, end) => {
 			leftEscape = true;
 		}
 
-		if (!isInsideEscape && !leftEscape) {
+		if (!astralRegex({exact: true}).test(character) && isFullwidthCodePoint(character.codePointAt(0))) {
 			++visible;
-		}
-
-		if (!astralRegex({exact: true}).test(character) && isFullwidthCodePoint(character.codePointAt())) {
+		} else if (!isInsideEscape && !leftEscape) {
 			++visible;
 		}
 

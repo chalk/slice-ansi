@@ -39,7 +39,7 @@ test('main', t => {
 });
 
 test('supports fullwidth characters', t => {
-	t.is(sliceAnsi('안녕하세', 0, 4), '안녕');
+	t.is(sliceAnsi('안녕하세', 0, 4), '안녕하세');
 });
 
 test('supports unicode surrogate pairs', t => {
@@ -94,6 +94,6 @@ test('doesn\'t add extra escapes', t => {
 });
 
 // See https://github.com/chalk/slice-ansi/issues/26
-test.failing('does not lose fullwidth characters', t => {
+test('does not lose fullwidth characters', t => {
 	t.is(sliceAnsi('古古test', 0), '古古test');
 });
