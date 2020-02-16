@@ -16,17 +16,17 @@ const checkAnsi = (ansiCodes, isEscapes, endAnsiCode) => {
 
 	for (let ansiCode of ansiCodes) {
 		const ansiCodeOrigin = ansiCode;
-		if (ansiCode.match(';')) {
+		if (ansiCode.includes(';')) {
 			ansiCode = ansiCode.split(';')[0][0] + '0';
 		}
 
-		const item = ansiStyles.codes.get(parseInt(ansiCode, 10));
+		const item = ansiStyles.codes.get(Number.parseInt(ansiCode, 10));
 		if (item) {
 			const indexEscape = ansiCodes.indexOf(item.toString());
-			if (indexEscape >= 0) {
-				ansiCodes.splice(indexEscape, 1);
-			} else {
+			if (indexEscape === -1) {
 				output.push(wrapAnsi(isEscapes ? item : ansiCodeOrigin));
+			} else {
+				ansiCodes.splice(indexEscape, 1);
 			}
 		} else if (isEscapes) {
 			output.push(wrapAnsi(0));
@@ -38,8 +38,9 @@ const checkAnsi = (ansiCodes, isEscapes, endAnsiCode) => {
 
 	if (isEscapes) {
 		output = output.filter((element, index) => output.indexOf(element) === index);
+
 		if (endAnsiCode !== undefined) {
-			const fistEscapeCode = wrapAnsi(ansiStyles.codes.get(parseInt(endAnsiCode, 10)));
+			const fistEscapeCode = wrapAnsi(ansiStyles.codes.get(Number.parseInt(endAnsiCode, 10)));
 			output = output.reduce((current, next) => next === fistEscapeCode ? [next, ...current] : [...current, next], []);
 		}
 	}
@@ -63,8 +64,10 @@ module.exports = (string, begin, end) => {
 		if (ESCAPES.includes(character)) {
 			const code = /\d[^m]*/.exec(string.slice(index, index + 18));
 			ansiCode = code && code.length > 0 ? code[0] : undefined;
+
 			if (visible < stringEnd) {
 				isInsideEscape = true;
+
 				if (ansiCode !== undefined) {
 					ansiCodes.push(ansiCode);
 				}
@@ -75,14 +78,14 @@ module.exports = (string, begin, end) => {
 		}
 
 		if (!isInsideEscape && !leftEscape) {
-			++visible;
+			visible++;
 		}
 
 		if (!astralRegex({exact: true}).test(character) && isFullwidthCodePoint(character.codePointAt())) {
-			++visible;
+			visible++;
 
 			if (typeof end !== 'number') {
-				++stringEnd;
+				stringEnd++;
 			}
 		}
 

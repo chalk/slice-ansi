@@ -4,8 +4,9 @@
 	"description": "Slice a string with ANSI escape codes",
 	"license": "MIT",
 	"repository": "chalk/slice-ansi",
+	"funding": "https://github.com/chalk/slice-ansi?sponsor=1",
 	"engines": {
-		"node": ">=8"
+		"node": ">=10"
 	},
 	"scripts": {
 		"test": "xo && ava"
@@ -43,9 +44,9 @@
 	},
 	"devDependencies": {
 		"ava": "^2.1.0",
-		"chalk": "^2.4.2",
+		"chalk": "^3.0.0",
 		"random-item": "^3.0.0",
-		"strip-ansi": "^5.0.0",
-		"xo": "^0.24.0"
+		"strip-ansi": "^6.0.0",
+		"xo": "^0.26.1"
 	}
 }
