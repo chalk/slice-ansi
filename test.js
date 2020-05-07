@@ -97,3 +97,8 @@ test('doesn\'t add extra escapes', t => {
 test('does not lose fullwidth characters', t => {
 	t.is(sliceAnsi('古古test', 0), '古古test');
 });
+
+test.failing('slice links', t => {
+	const link = '\u001B]8;;https://google.com\u0007Google\u001B]8;;\u0007';
+	t.is(sliceAnsi(link, 0, 6), link);
+});
