@@ -98,7 +98,25 @@ test('does not lose fullwidth characters', t => {
 	t.is(sliceAnsi('古古test', 0), '古古test');
 });
 
-test.failing('slice links', t => {
+test('slice links', t => {
 	const link = '\u001B]8;;https://google.com\u0007Google\u001B]8;;\u0007';
 	t.is(sliceAnsi(link, 0, 6), link);
+});
+
+test('slice links - shortening', t => {
+	const link = '\u001B]8;;https://google.com\u0007Google\u001B]8;;\u0007';
+	const expected = '\u001B]8;;https://google.com\u0007Goog\u001B]8;;\u0007';
+	t.is(JSON.stringify(sliceAnsi(link, 0, 4)), JSON.stringify(expected));
+});
+
+test('slice links - going over link', t => {
+	const link = '\u001B]8;;https://google.com\u0007Google\u001B]8;;\u0007 and some more text';
+	const expected = '\u001B]8;;https://google.com\u0007Google\u001B]8;;\u0007 and s';
+	t.is(JSON.stringify(sliceAnsi(link, 0, 12)), JSON.stringify(expected));
+});
+
+test('slice links mid text', t => {
+	const link = 'some entry text \u001B]8;;https://google.com\u0007Google\u001B]8;;\u0007 and some more text';
+	const expected = 'some entry text \u001B]8;;https://google.com\u0007Google\u001B]8;;\u0007 an';
+	t.is(JSON.stringify(sliceAnsi(link, 0, 25)), JSON.stringify(expected));
 });
