@@ -89,8 +89,12 @@ test('support true color escape sequences', t => {
 test('doesn\'t add extra escapes', t => {
 	const output = `${chalk.black.bgYellow(' RUNS ')}  ${chalk.green('test')}`;
 	t.is(sliceAnsi(output, 0, 7), `${chalk.black.bgYellow(' RUNS ')} `);
-	t.is(sliceAnsi(output, 0, 8), `${chalk.black.bgYellow(' RUNS ')}  `);
-	t.is(sliceAnsi('\u001B[31m' + output, 0, 4), `\u001B[31m${chalk.black.bgYellow(' RUN')}`);
+	t.is(JSON.stringify(sliceAnsi(output, 0, 8)), JSON.stringify(`${chalk.black.bgYellow(' RUNS ')}  `));
+	console.log(JSON.stringify('\u001B[31m' + output));
+	console.log('\u001B[31m' + output);
+	console.log(JSON.stringify(`\u001B[31m${chalk.black.bgYellow(' RUN')}`));
+	console.log(`\u001B[31m${chalk.black.bgYellow(' RUN')}`);
+	t.is(JSON.stringify(sliceAnsi('\u001B[31m' + output, 0, 4)), JSON.stringify(`\u001B[31m${chalk.black.bgYellow(' RUN')}`));
 });
 
 // See https://github.com/chalk/slice-ansi/issues/26
@@ -98,7 +102,25 @@ test('does not lose fullwidth characters', t => {
 	t.is(sliceAnsi('古古test', 0), '古古test');
 });
 
-test.failing('slice links', t => {
+test('slice links', t => {
 	const link = '\u001B]8;;https://google.com\u0007Google\u001B]8;;\u0007';
 	t.is(sliceAnsi(link, 0, 6), link);
+});
+
+test('slice links - shortening', t => {
+	const link = '\u001B]8;;https://google.com\u0007Google\u001B]8;;\u0007';
+	const expected = '\u001B]8;;https://google.com\u0007Goog\u001B]8;;\u0007';
+	t.is(JSON.stringify(sliceAnsi(link, 0, 4)), JSON.stringify(expected));
+});
+
+test('slice links - going over link', t => {
+	const link = '\u001B]8;;https://google.com\u0007Google\u001B]8;;\u0007 and some more text';
+	const expected = '\u001B]8;;https://google.com\u0007Google\u001B]8;;\u0007 and s';
+	t.is(JSON.stringify(sliceAnsi(link, 0, 12)), JSON.stringify(expected));
+});
+
+test('slice links mid text', t => {
+	const link = 'some entry text \u001B]8;;https://google.com\u0007Google\u001B]8;;\u0007 and some more text';
+	const expected = 'some entry text \u001B]8;;https://google.com\u0007Google\u001B]8;;\u0007 an';
+	t.is(JSON.stringify(sliceAnsi(link, 0, 25)), JSON.stringify(expected));
 });
