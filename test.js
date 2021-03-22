@@ -90,7 +90,11 @@ test('doesn\'t add extra escapes', t => {
 	const output = `${chalk.black.bgYellow(' RUNS ')}  ${chalk.green('test')}`;
 	t.is(sliceAnsi(output, 0, 7), `${chalk.black.bgYellow(' RUNS ')} `);
 	t.is(JSON.stringify(sliceAnsi(output, 0, 8)), JSON.stringify(`${chalk.black.bgYellow(' RUNS ')}  `));
-	t.is(JSON.stringify(sliceAnsi('\u001B[31m' + output, 0, 4)), JSON.stringify(`\u001B[31m${chalk.black.bgYellow(' RUNS')}`));
+	console.log(JSON.stringify('\u001B[31m' + output));
+	console.log('\u001B[31m' + output);
+	console.log(JSON.stringify(`\u001B[31m${chalk.black.bgYellow(' RUN')}`));
+	console.log(`\u001B[31m${chalk.black.bgYellow(' RUN')}`);
+	t.is(JSON.stringify(sliceAnsi('\u001B[31m' + output, 0, 4)), JSON.stringify(`\u001B[31m${chalk.black.bgYellow(' RUN')}`));
 });
 
 // See https://github.com/chalk/slice-ansi/issues/26
