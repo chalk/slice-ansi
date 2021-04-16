@@ -1,40 +1,41 @@
-import util from 'util';
 import test from 'ava';
 import chalk from 'chalk';
 import stripAnsi from 'strip-ansi';
 import randomItem from 'random-item';
-import sliceAnsi from '.';
+import sliceAnsi from './index.js';
+
+chalk.level = 1;
 
 const fixture = chalk.red('the ') + chalk.green('quick ') + chalk.blue('brown ') + chalk.cyan('fox ') + chalk.yellow('jumped ');
 const stripped = stripAnsi(fixture);
 
 function generate(string) {
-	const rand1 = randomItem(['rock', 'paper', 'scissors']);
-	const rand2 = randomItem(['blue', 'green', 'yellow', 'red']);
-	return `${string}:${chalk[rand2](rand1)} `;
+	const random1 = randomItem(['rock', 'paper', 'scissors']);
+	const random2 = randomItem(['blue', 'green', 'yellow', 'red']);
+	return `${string}:${chalk[random2](random1)} `;
 }
 
 test('main', t => {
 	// The slice should behave exactly as a regular JS slice behaves
-	for (let i = 0; i < 20; i++) {
-		for (let j = 19; j > i; j--) {
-			const nativeSlice = stripped.slice(i, j);
-			const ansiSlice = sliceAnsi(fixture, i, j);
+	for (let index = 0; index < 20; index++) {
+		for (let index2 = 19; index2 > index; index2--) {
+			const nativeSlice = stripped.slice(index, index2);
+			const ansiSlice = sliceAnsi(fixture, index, index2);
 			t.is(nativeSlice, stripAnsi(ansiSlice));
 		}
 	}
 
-	const a = util.inspect('\u001B[31mthe \u001B[39m\u001B[32mquick \u001B[39m');
-	const b = util.inspect('\u001B[34mbrown \u001B[39m\u001B[36mfox \u001B[39m');
-	const c = util.inspect('\u001B[31m \u001B[39m\u001B[32mquick \u001B[39m\u001B[34mbrown \u001B[39m\u001B[36mfox \u001B[39m');
+	const a = JSON.stringify('\u001B[31mthe \u001B[39m\u001B[32mquick \u001B[39m');
+	const b = JSON.stringify('\u001B[34mbrown \u001B[39m\u001B[36mfox \u001B[39m');
+	const c = JSON.stringify('\u001B[31m \u001B[39m\u001B[32mquick \u001B[39m\u001B[34mbrown \u001B[39m\u001B[36mfox \u001B[39m');
 
-	t.is(util.inspect(sliceAnsi(fixture, 0, 10)), a);
-	t.is(util.inspect(sliceAnsi(fixture, 10, 20)), b);
-	t.is(util.inspect(sliceAnsi(fixture, 3, 20)), c);
+	t.is(JSON.stringify(sliceAnsi(fixture, 0, 10)), a);
+	t.is(JSON.stringify(sliceAnsi(fixture, 10, 20)), b);
+	t.is(JSON.stringify(sliceAnsi(fixture, 3, 20)), c);
 
-	const str = generate(1) + generate(2) + generate(3) + generate(4) + generate(5) + generate(6) + generate(7) + generate(8) + generate(9) + generate(10) + generate(11) + generate(12) + generate(13) + generate(14) + generate(15) + generate(1) + generate(2) + generate(3) + generate(4) + generate(5) + generate(6) + generate(7) + generate(8) + generate(9) + generate(10) + generate(11) + generate(12) + generate(13) + generate(14) + generate(15);
-	const native = stripAnsi(str).slice(0, 55);
-	const ansi = stripAnsi(sliceAnsi(str, 0, 55));
+	const string = generate(1) + generate(2) + generate(3) + generate(4) + generate(5) + generate(6) + generate(7) + generate(8) + generate(9) + generate(10) + generate(11) + generate(12) + generate(13) + generate(14) + generate(15) + generate(1) + generate(2) + generate(3) + generate(4) + generate(5) + generate(6) + generate(7) + generate(8) + generate(9) + generate(10) + generate(11) + generate(12) + generate(13) + generate(14) + generate(15);
+	const native = stripAnsi(string).slice(0, 55);
+	const ansi = stripAnsi(sliceAnsi(string, 0, 55));
 	t.is(native, ansi);
 });
 
@@ -90,7 +91,7 @@ test('doesn\'t add extra escapes', t => {
 	const output = `${chalk.black.bgYellow(' RUNS ')}  ${chalk.green('test')}`;
 	t.is(sliceAnsi(output, 0, 7), `${chalk.black.bgYellow(' RUNS ')} `);
 	t.is(sliceAnsi(output, 0, 8), `${chalk.black.bgYellow(' RUNS ')}  `);
-	t.is(sliceAnsi('\u001B[31m' + output, 0, 4), `\u001B[31m${chalk.black.bgYellow(' RUN')}`);
+	t.is(JSON.stringify(sliceAnsi('\u001B[31m' + output, 0, 4)), JSON.stringify(`\u001B[31m${chalk.black.bgYellow(' RUN')}`));
 });
 
 // See https://github.com/chalk/slice-ansi/issues/26

@@ -5,8 +5,10 @@
 	"license": "MIT",
 	"repository": "chalk/slice-ansi",
 	"funding": "https://github.com/chalk/slice-ansi?sponsor=1",
+	"type": "module",
+	"exports": "./index.js",
 	"engines": {
-		"node": ">=10"
+		"node": ">=12"
 	},
 	"scripts": {
 		"test": "xo && ava"
@@ -38,15 +40,14 @@
 		"text"
 	],
 	"dependencies": {
-		"ansi-styles": "^4.0.0",
-		"astral-regex": "^2.0.0",
-		"is-fullwidth-code-point": "^3.0.0"
+		"ansi-styles": "^6.0.0",
+		"is-fullwidth-code-point": "^4.0.0"
 	},
 	"devDependencies": {
-		"ava": "^2.1.0",
-		"chalk": "^3.0.0",
-		"random-item": "^3.0.0",
-		"strip-ansi": "^6.0.0",
-		"xo": "^0.26.1"
+		"ava": "^3.15.0",
+		"chalk": "^4.1.0",
+		"random-item": "^4.0.0",
+		"strip-ansi": "^7.0.0",
+		"xo": "^0.38.2"
 	}
 }
