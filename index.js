@@ -50,6 +50,30 @@ const checkAnsi = (ansiCodes, isEscapes, endAnsiCode) => {
 	return output.join('');
 };
 
+function findNumberIndex(string) {
+	for (let index = 0; index < string.length; index++) {
+		const charCode = string.charCodeAt(index);
+		if (charCode >= 48 && charCode <= 57) {
+			return index;
+		}
+	}
+
+	return -1;
+}
+
+function parseAnsiCode(string, offset) {
+	string = string.slice(offset, offset + 18);
+	const startIndex = findNumberIndex(string);
+	if (startIndex !== -1) {
+		let endIndex = string.indexOf('m', startIndex);
+		if (endIndex === -1) {
+			endIndex = string.length;
+		}
+
+		return string.slice(startIndex, endIndex);
+	}
+}
+
 export default function sliceAnsi(string, begin, end) {
 	const ansiCodes = [];
 	const characters = [...string];
@@ -66,8 +90,7 @@ export default function sliceAnsi(string, begin, end) {
 		let leftEscape = false;
 
 		if (ESCAPES.includes(character)) {
-			const code = /\d[^m]*/.exec(string.slice(index, index + 18));
-			ansiCode = code && code.length > 0 ? code[0] : undefined;
+			ansiCode = parseAnsiCode(string, index);
 
 			if (visible < stringEnd) {
 				isInsideEscape = true;
