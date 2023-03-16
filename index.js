@@ -6,6 +6,11 @@ const ESCAPES = [
 	'\u009B'
 ];
 
+const escapeCodes = new Map();
+for (const [start, end] of ansiStyles.codes) {
+	escapeCodes.set(start.toString(), end.toString());
+}
+
 const wrapAnsi = code => `${ESCAPES[0]}[${code}m`;
 
 const checkAnsi = (ansiCodes, isEscapes, endAnsiCode) => {
@@ -18,9 +23,9 @@ const checkAnsi = (ansiCodes, isEscapes, endAnsiCode) => {
 			ansiCode = ansiCode.split(';')[0][0] + '0';
 		}
 
-		const item = ansiStyles.codes.get(Number.parseInt(ansiCode, 10));
+		const item = escapeCodes.get(ansiCode);
 		if (item) {
-			const indexEscape = ansiCodes.indexOf(item.toString());
+			const indexEscape = ansiCodes.indexOf(item);
 			if (indexEscape === -1) {
 				output.push(wrapAnsi(isEscapes ? item : ansiCodeOrigin));
 			} else {
@@ -38,7 +43,7 @@ const checkAnsi = (ansiCodes, isEscapes, endAnsiCode) => {
 		output = output.filter((element, index) => output.indexOf(element) === index);
 
 		if (endAnsiCode !== undefined) {
-			const fistEscapeCode = wrapAnsi(ansiStyles.codes.get(Number.parseInt(endAnsiCode, 10)));
+			const fistEscapeCode = wrapAnsi(escapeCodes.get(endAnsiCode));
 			// TODO: Remove the use of `.reduce` here.
 			// eslint-disable-next-line unicorn/no-array-reduce
 			output = output.reduce((current, next) => next === fistEscapeCode ? [next, ...current] : [...current, next], []);
