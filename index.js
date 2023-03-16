@@ -19,8 +19,9 @@ const checkAnsi = (ansiCodes, isEscapes, endAnsiCode) => {
 
 	for (let ansiCode of ansiCodes) {
 		const ansiCodeOrigin = ansiCode;
-		if (ansiCode.includes(';')) {
-			ansiCode = ansiCode.split(';')[0][0] + '0';
+		const semiIndex = ansiCode.indexOf(';');
+		if (semiIndex > -1) {
+			ansiCode = ansiCode.slice(0, Math.min(1, semiIndex)) + '0';
 		}
 
 		const item = escapeCodes.get(ansiCode);
