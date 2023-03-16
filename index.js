@@ -51,8 +51,8 @@ const checkAnsi = (ansiCodes, isEscapes, endAnsiCode) => {
 };
 
 export default function sliceAnsi(string, begin, end) {
-	const characters = [...string];
 	const ansiCodes = [];
+	const characters = [...string];
 
 	let stringEnd = typeof end === 'number' ? end : characters.length;
 	let isInsideEscape = false;
@@ -60,7 +60,9 @@ export default function sliceAnsi(string, begin, end) {
 	let visible = 0;
 	let output = '';
 
-	for (const [index, character] of characters.entries()) {
+	// eslint-disable-next-line unicorn/no-for-loop
+	for (let index = 0; index < characters.length; index++) {
+		const character = characters[index];
 		let leftEscape = false;
 
 		if (ESCAPES.includes(character)) {
