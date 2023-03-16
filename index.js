@@ -1,8 +1,6 @@
 import isFullwidthCodePoint from 'is-fullwidth-code-point';
 import ansiStyles from 'ansi-styles';
 
-const astralRegex = /^[\uD800-\uDBFF][\uDC00-\uDFFF]$/;
-
 const ESCAPES = [
 	'\u001B',
 	'\u009B'
@@ -76,39 +74,42 @@ function parseAnsiCode(string, offset) {
 
 export default function sliceAnsi(string, begin, end) {
 	const ansiCodes = [];
-	const characters = [...string];
 
-	let stringEnd = typeof end === 'number' ? end : characters.length;
+	let stringEnd = typeof end === 'number' ? end : string.length;
 	let isInsideEscape = false;
 	let ansiCode;
 	let visible = 0;
 	let output = '';
 
-	// eslint-disable-next-line unicorn/no-for-loop
-	for (let index = 0; index < characters.length; index++) {
-		const character = characters[index];
+	let index = 0;
+	while (index < string.length) {
+		const codePoint = string.codePointAt(index);
+		const character = String.fromCodePoint(codePoint);
+
 		let leftEscape = false;
 
-		if (ESCAPES.includes(character)) {
-			ansiCode = parseAnsiCode(string, index);
+		if (character.length === 1) {
+			if (ESCAPES.includes(character)) {
+				ansiCode = parseAnsiCode(string, index);
 
-			if (visible < stringEnd) {
-				isInsideEscape = true;
+				if (visible < stringEnd) {
+					isInsideEscape = true;
 
-				if (ansiCode !== undefined) {
-					ansiCodes.push(ansiCode);
+					if (ansiCode !== undefined) {
+						ansiCodes.push(ansiCode);
+					}
 				}
+			} else if (isInsideEscape && character === 'm') {
+				isInsideEscape = false;
+				leftEscape = true;
 			}
-		} else if (isInsideEscape && character === 'm') {
-			isInsideEscape = false;
-			leftEscape = true;
 		}
 
 		if (!isInsideEscape && !leftEscape) {
 			visible++;
 		}
 
-		if (!astralRegex.test(character) && isFullwidthCodePoint(character.codePointAt())) {
+		if (character.length === 1 && isFullwidthCodePoint(character.codePointAt())) {
 			visible++;
 
 			if (typeof end !== 'number') {
@@ -124,6 +125,8 @@ export default function sliceAnsi(string, begin, end) {
 			output += checkAnsi(ansiCodes, true, ansiCode);
 			break;
 		}
+
+		index += character.length;
 	}
 
 	return output;
