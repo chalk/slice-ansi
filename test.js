@@ -83,7 +83,7 @@ test('weird null issue', t => {
 });
 
 test('support true color escape sequences', t => {
-	t.is(sliceAnsi('\u001B[1m\u001B[48;2;255;255;255m\u001B[38;2;255;0;0municorn\u001B[39m\u001B[49m\u001B[22m', 0, 3), '\u001B[1m\u001B[48;2;255;255;255m\u001B[38;2;255;0;0muni\u001B[22m\u001B[49m\u001B[39m');
+	t.is(sliceAnsi('\u001B[1m\u001B[48;2;255;255;255m\u001B[38;2;255;0;0municorn\u001B[39m\u001B[49m\u001B[22m', 0, 3), '\u001B[1m\u001B[48;2;255;255;255m\u001B[38;2;255;0;0muni\u001B[39m\u001B[49m\u001B[22m');
 });
 
 // See https://github.com/chalk/slice-ansi/issues/24
@@ -91,12 +91,16 @@ test('doesn\'t add extra escapes', t => {
 	const output = `${chalk.black.bgYellow(' RUNS ')}  ${chalk.green('test')}`;
 	t.is(sliceAnsi(output, 0, 7), `${chalk.black.bgYellow(' RUNS ')} `);
 	t.is(sliceAnsi(output, 0, 8), `${chalk.black.bgYellow(' RUNS ')}  `);
-	t.is(JSON.stringify(sliceAnsi('\u001B[31m' + output, 0, 4)), JSON.stringify(`\u001B[31m${chalk.black.bgYellow(' RUN')}`));
+	t.is(JSON.stringify(sliceAnsi('\u001B[31m' + output, 0, 4)), JSON.stringify(chalk.black.bgYellow(' RUN')));
 });
 
 // See https://github.com/chalk/slice-ansi/issues/26
 test('does not lose fullwidth characters', t => {
 	t.is(sliceAnsi('古古test', 0), '古古test');
+});
+
+test('can create empty slices', t => {
+	t.is(sliceAnsi('test', 0, 0), '');
 });
 
 test.failing('slice links', t => {
