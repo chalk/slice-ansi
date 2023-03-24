@@ -1,7 +1,11 @@
 import ansiStyles from 'ansi-styles';
 import isFullwidthCodePoint from 'is-fullwidth-code-point';
 
+// \x1b and \x9b
 const ESCAPES = new Set([27, 155]);
+
+const CHAR_CODE_0 = '0'.charCodeAt(0);
+const CHAR_CODE_9 = '9'.charCodeAt(0);
 
 const endCodesSet = new Set();
 const endCodesMap = new Map();
@@ -35,7 +39,7 @@ function getEndCode(code) {
 function findNumberIndex(string) {
 	for (let index = 0; index < string.length; index++) {
 		const charCode = string.charCodeAt(index);
-		if (charCode >= 48 && charCode <= 57) {
+		if (charCode >= CHAR_CODE_0 && charCode <= CHAR_CODE_9) {
 			return index;
 		}
 	}
@@ -60,7 +64,7 @@ function tokenize(string, endChar = Number.POSITIVE_INFINITY) {
 	const returnValue = [];
 
 	let index = 0;
-	let visible = 0;
+	let visibleCount = 0;
 	while (index < string.length) {
 		const codePoint = string.codePointAt(index);
 
@@ -77,17 +81,17 @@ function tokenize(string, endChar = Number.POSITIVE_INFINITY) {
 			}
 		}
 
-		const fullWidth = isFullwidthCodePoint(codePoint);
+		const isFullWidth = isFullwidthCodePoint(codePoint);
 		const character = String.fromCodePoint(codePoint);
 
 		returnValue.push({
-			type: 'char',
+			type: 'character',
 			value: character,
-			fullWidth
+			isFullWidth
 		});
 		index += character.length;
-		visible += fullWidth ? 2 : character.length;
-		if (visible >= endChar) {
+		visibleCount += isFullWidth ? 2 : character.length;
+		if (visibleCount >= endChar) {
 			break;
 		}
 	}
@@ -123,12 +127,12 @@ function undoAnsiCodes(codes) {
 export default function sliceAnsi(string, begin, end) {
 	const tokens = tokenize(string, end);
 	let activeCodes = [];
-	let pos = 0;
+	let position = 0;
 	let returnValue = '';
 	let include = false;
 
 	for (const token of tokens) {
-		if (end !== undefined && pos >= end) {
+		if (end !== undefined && position >= end) {
 			break;
 		}
 
@@ -139,7 +143,7 @@ export default function sliceAnsi(string, begin, end) {
 			}
 		} else {
 			// Char
-			if (!include && pos >= begin) {
+			if (!include && position >= begin) {
 				include = true;
 				// Simplify active codes
 				activeCodes = reduceAnsiCodes(activeCodes);
@@ -150,7 +154,7 @@ export default function sliceAnsi(string, begin, end) {
 				returnValue += token.value;
 			}
 
-			pos += token.fullWidth ? 2 : token.value.length;
+			position += token.isFullWidth ? 2 : token.value.length;
 		}
 	}
 
