@@ -4,8 +4,8 @@ import isFullwidthCodePoint from 'is-fullwidth-code-point';
 // \x1b and \x9b
 const ESCAPES = new Set([27, 155]);
 
-const CHAR_CODE_0 = '0'.charCodeAt(0);
-const CHAR_CODE_9 = '9'.charCodeAt(0);
+const CODE_POINT_0 = '0'.codePointAt(0);
+const CODE_POINT_9 = '9'.codePointAt(0);
 
 const endCodesSet = new Set();
 const endCodesMap = new Map();
@@ -38,8 +38,8 @@ function getEndCode(code) {
 
 function findNumberIndex(string) {
 	for (let index = 0; index < string.length; index++) {
-		const charCode = string.charCodeAt(index);
-		if (charCode >= CHAR_CODE_0 && charCode <= CHAR_CODE_9) {
+		const codePoint = string.codePointAt(index);
+		if (codePoint >= CODE_POINT_0 && codePoint <= CODE_POINT_9) {
 			return index;
 		}
 	}
@@ -60,7 +60,7 @@ function parseAnsiCode(string, offset) {
 	}
 }
 
-function tokenize(string, endChar = Number.POSITIVE_INFINITY) {
+function tokenize(string, endCharacter = Number.POSITIVE_INFINITY) {
 	const returnValue = [];
 
 	let index = 0;
@@ -74,7 +74,7 @@ function tokenize(string, endChar = Number.POSITIVE_INFINITY) {
 				returnValue.push({
 					type: 'ansi',
 					code,
-					endCode: getEndCode(code)
+					endCode: getEndCode(code),
 				});
 				index += code.length;
 				continue;
@@ -87,11 +87,13 @@ function tokenize(string, endChar = Number.POSITIVE_INFINITY) {
 		returnValue.push({
 			type: 'character',
 			value: character,
-			isFullWidth
+			isFullWidth,
 		});
+
 		index += character.length;
 		visibleCount += isFullWidth ? 2 : character.length;
-		if (visibleCount >= endChar) {
+
+		if (visibleCount >= endCharacter) {
 			break;
 		}
 	}
@@ -101,6 +103,7 @@ function tokenize(string, endChar = Number.POSITIVE_INFINITY) {
 
 function reduceAnsiCodes(codes) {
 	let returnValue = [];
+
 	for (const code of codes) {
 		if (code.code === ansiStyles.reset.open) {
 			// Reset code, disable all codes
@@ -124,7 +127,7 @@ function undoAnsiCodes(codes) {
 	return endCodes.reverse().join('');
 }
 
-export default function sliceAnsi(string, begin, end) {
+export default function sliceAnsi(string, start, end) {
 	const tokens = tokenize(string, end);
 	let activeCodes = [];
 	let position = 0;
@@ -142,8 +145,8 @@ export default function sliceAnsi(string, begin, end) {
 				returnValue += token.code;
 			}
 		} else {
-			// Char
-			if (!include && position >= begin) {
+			// Character
+			if (!include && position >= start) {
 				include = true;
 				// Simplify active codes
 				activeCodes = reduceAnsiCodes(activeCodes);

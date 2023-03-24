@@ -4,8 +4,8 @@
 
 ## Install
 
-```
-$ npm install slice-ansi
+```sh
+npm install slice-ansi
 ```
 
 ## Usage
@@ -22,7 +22,7 @@ console.log(sliceAnsi(string, 20, 30));
 
 ## API
 
-### sliceAnsi(string, beginSlice, endSlice?)
+### sliceAnsi(string, startSlice, endSlice?)
 
 #### string
 
@@ -30,11 +30,11 @@ Type: `string`
 
 String with ANSI escape codes. Like one styled by [`chalk`](https://github.com/chalk/chalk).
 
-#### beginSlice
+#### startSlice
 
 Type: `number`
 
-Zero-based index at which to begin the slice.
+Zero-based index at which to start the slice.
 
 #### endSlice
 
@@ -52,15 +52,3 @@ Zero-based index at which to end the slice.
 
 - [Sindre Sorhus](https://github.com/sindresorhus)
 - [Josh Junon](https://github.com/qix-)
-
----
-
-<div align="center">
-	<b>
-		<a href="https://tidelift.com/subscription/pkg/npm-slice_ansi?utm_source=npm-slice-ansi&utm_medium=referral&utm_campaign=readme">Get professional support for this package with a Tidelift subscription</a>
-	</b>
-	<br>
-	<sub>
-		Tidelift helps make open source sustainable for maintainers while giving companies<br>assurances about security, maintenance, and licensing for their dependencies.
-	</sub>
-</div>
