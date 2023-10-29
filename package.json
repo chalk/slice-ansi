@@ -6,15 +6,19 @@
 	"repository": "chalk/slice-ansi",
 	"funding": "https://github.com/chalk/slice-ansi?sponsor=1",
 	"type": "module",
-	"exports": "./index.js",
+	"exports": {
+		"types": "./index.d.ts",
+		"default": "./index.js"
+	},
 	"engines": {
-		"node": ">=14.16"
+		"node": ">=18"
 	},
 	"scripts": {
-		"test": "xo && ava"
+		"test": "xo && ava && tsc index.d.ts"
 	},
 	"files": [
-		"index.js"
+		"index.js",
+		"index.d.ts"
 	],
 	"keywords": [
 		"slice",
