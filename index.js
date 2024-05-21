@@ -7,6 +7,8 @@ const ESCAPES = new Set([27, 155]);
 const CODE_POINT_0 = '0'.codePointAt(0);
 const CODE_POINT_9 = '9'.codePointAt(0);
 
+const MAX_ANSI_SEQUENCE_LENGTH = 19;
+
 const endCodesSet = new Set();
 const endCodesMap = new Map();
 for (const [start, end] of ansiStyles.codes) {
@@ -48,7 +50,7 @@ function findNumberIndex(string) {
 }
 
 function parseAnsiCode(string, offset) {
-	string = string.slice(offset, offset + 19);
+	string = string.slice(offset, offset + MAX_ANSI_SEQUENCE_LENGTH);
 	const startIndex = findNumberIndex(string);
 	if (startIndex !== -1) {
 		let endIndex = string.indexOf('m', startIndex);
