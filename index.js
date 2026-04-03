@@ -216,7 +216,10 @@ export default function sliceAnsi(string, start, end) {
 	let include = false;
 
 	for (const [tokenIndex, token] of tokens.entries()) {
-		let isPastEnd = end !== undefined && position >= end;
+		let isPastEnd = end !== undefined && (
+			position >= end
+			|| (token.type === 'character' && !token.isGraphemeContinuation && position + token.visibleWidth > end)
+		);
 		if (
 			isPastEnd
 			&& token.type !== 'character'

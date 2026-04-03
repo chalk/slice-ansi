@@ -201,7 +201,8 @@ test('supports fullwidth characters', t => {
 });
 
 test('supports unicode surrogate pairs', t => {
-	t.is(sliceAnsi('a\uD83C\uDE00BC', 0, 2), 'a\uD83C\uDE00');
+	t.is(sliceAnsi('a\uD83C\uDE00BC', 0, 2), 'a');
+	t.is(sliceAnsi('a\uD83C\uDE00BC', 0, 3), 'a\uD83C\uDE00');
 });
 
 test('does not split grapheme clusters with combining marks', t => {
@@ -308,15 +309,31 @@ test('does not lose fullwidth characters', t => {
 	t.is(sliceAnsi('古古test', 0), '古古test');
 });
 
+// See https://github.com/chalk/slice-ansi/issues/43
+test('does not exceed endColumn for wide characters', t => {
+	const input = 'あいう';
+	t.is(sliceAnsi(input, 0, 0), '');
+	t.is(sliceAnsi(input, 0, 1), '');
+	t.is(sliceAnsi(input, 0, 2), 'あ');
+	t.is(sliceAnsi(input, 0, 3), 'あ');
+	t.is(sliceAnsi(input, 0, 4), 'あい');
+	t.is(sliceAnsi(input, 0, 5), 'あい');
+	t.is(sliceAnsi(input, 0, 6), 'あいう');
+});
+
 test('does not split regional-indicator flag graphemes', t => {
 	const input = 'A🇮🇱B';
-	t.is(sliceAnsi(input, 1, 2), '🇮🇱');
+	t.is(sliceAnsi(input, 0, 1), 'A');
+	t.is(sliceAnsi(input, 1, 2), '');
+	t.is(sliceAnsi(input, 1, 3), '🇮🇱');
 	t.is(sliceAnsi(input, 2, 3), '');
+	t.is(sliceAnsi(input, 3, 4), 'B');
 });
 
 test('does not split styled regional-indicator flag graphemes', t => {
 	const input = '\u001B[31m🇮🇱\u001B[39m';
-	t.is(sliceAnsi(input, 0, 1), input);
+	t.is(sliceAnsi(input, 0, 1), '');
+	t.is(sliceAnsi(input, 0, 2), input);
 	t.is(sliceAnsi(input, 1, 2), '');
 });
 
