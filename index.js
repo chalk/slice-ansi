@@ -63,126 +63,132 @@ function hasSgrStartFragment(token) {
 	return token.fragments.some(fragment => fragment.type === 'start');
 }
 
-function discardPendingHyperlink(parameters) {
+function discardPendingHyperlink(state) {
 	if (
-		parameters.activeHyperlink
-		&& !parameters.activeHyperlinkHasVisibleText
-		&& parameters.activeHyperlinkOutputIndex !== undefined
+		state.activeHyperlink
+		&& !state.activeHyperlinkHasVisibleText
+		&& state.activeHyperlinkOutputIndex !== undefined
 	) {
-		const openCodeLength = parameters.activeHyperlink.code.length;
-		parameters.returnValue = parameters.returnValue.slice(0, parameters.activeHyperlinkOutputIndex) + parameters.returnValue.slice(parameters.activeHyperlinkOutputIndex + openCodeLength);
+		const openCodeLength = state.activeHyperlink.code.length;
+		state.returnValue = state.returnValue.slice(0, state.activeHyperlinkOutputIndex) + state.returnValue.slice(state.activeHyperlinkOutputIndex + openCodeLength);
 
 		if (
-			parameters.pendingSgrOutputIndex !== undefined
-			&& parameters.pendingSgrOutputIndex > parameters.activeHyperlinkOutputIndex
+			state.pendingSgrOutputIndex !== undefined
+			&& state.pendingSgrOutputIndex > state.activeHyperlinkOutputIndex
 		) {
-			parameters.pendingSgrOutputIndex -= openCodeLength;
+			state.pendingSgrOutputIndex -= openCodeLength;
 		}
 	}
 
-	parameters.activeHyperlink = undefined;
-	parameters.activeHyperlinkHasVisibleText = false;
-	parameters.activeHyperlinkOutputIndex = undefined;
+	state.activeHyperlink = undefined;
+	state.activeHyperlinkHasVisibleText = false;
+	state.activeHyperlinkOutputIndex = undefined;
 }
 
-function applySgrToken(parameters) {
-	if (
-		parameters.isPastEnd
-		&& !shouldIncludeSgrAfterEnd(parameters.token, parameters.activeStyles)
-	) {
-		return parameters;
+function settleActiveHyperlink(state) {
+	if (state.activeHyperlinkHasVisibleText) {
+		state.returnValue += closeHyperlink(state.activeHyperlink);
+	} else {
+		discardPendingHyperlink(state);
 	}
-
-	if (
-		parameters.include
-		&& hasSgrStartFragment(parameters.token)
-		&& parameters.pendingSgrOutputIndex === undefined
-	) {
-		parameters.pendingSgrOutputIndex = parameters.returnValue.length;
-		parameters.pendingSgrActiveStyles = new Map(parameters.activeStyles);
-	}
-
-	parameters.activeStyles = applySgrFragments(parameters.activeStyles, parameters.token.fragments);
-	if (parameters.include) {
-		parameters.returnValue += parameters.token.code;
-	}
-
-	return parameters;
 }
 
-function applyHyperlinkToken(parameters) {
+function applySgrToken(state) {
 	if (
-		parameters.isPastEnd
+		state.isPastEnd
+		&& !shouldIncludeSgrAfterEnd(state.token, state.activeStyles)
+	) {
+		return;
+	}
+
+	if (
+		state.include
+		&& hasSgrStartFragment(state.token)
+		&& state.pendingSgrOutputIndex === undefined
+	) {
+		state.pendingSgrOutputIndex = state.returnValue.length;
+		state.pendingSgrActiveStyles = new Map(state.activeStyles);
+	}
+
+	state.activeStyles = applySgrFragments(state.activeStyles, state.token.fragments);
+	if (state.include) {
+		state.returnValue += state.token.code;
+	}
+}
+
+function applyHyperlinkToken(state) {
+	if (
+		state.isPastEnd
 		&& (
-			parameters.token.action !== 'close'
-			|| !parameters.activeHyperlink
+			state.token.action !== 'close'
+			|| !state.activeHyperlink
 		)
 	) {
-		return parameters;
+		return;
 	}
 
-	if (parameters.token.action === 'open') {
-		parameters.activeHyperlink = parameters.token;
-		parameters.activeHyperlinkHasVisibleText = false;
-		parameters.activeHyperlinkOutputIndex = undefined;
-		if (parameters.include) {
-			parameters.activeHyperlinkOutputIndex = parameters.returnValue.length;
+	if (state.token.action === 'open') {
+		// OSC 8 has no nesting: a new open replaces the active link, so settle the previous one first.
+		if (state.activeHyperlink) {
+			settleActiveHyperlink(state);
 		}
-	} else if (parameters.token.action === 'close') {
+
+		state.activeHyperlink = state.token;
+		state.activeHyperlinkHasVisibleText = false;
+		state.activeHyperlinkOutputIndex = undefined;
+		if (state.include) {
+			state.activeHyperlinkOutputIndex = state.returnValue.length;
+		}
+	} else if (state.token.action === 'close') {
 		if (
-			parameters.include
-			&& parameters.activeHyperlink
-			&& !parameters.activeHyperlinkHasVisibleText
+			state.include
+			&& state.activeHyperlink
+			&& !state.activeHyperlinkHasVisibleText
 		) {
-			discardPendingHyperlink(parameters);
-			return parameters;
+			discardPendingHyperlink(state);
+			return;
 		}
 
-		parameters.activeHyperlink = undefined;
-		parameters.activeHyperlinkHasVisibleText = false;
-		parameters.activeHyperlinkOutputIndex = undefined;
+		state.activeHyperlink = undefined;
+		state.activeHyperlinkHasVisibleText = false;
+		state.activeHyperlinkOutputIndex = undefined;
 	}
 
-	if (parameters.include) {
-		parameters.returnValue += parameters.token.code;
+	if (state.include) {
+		state.returnValue += state.token.code;
 	}
-
-	return parameters;
 }
 
-function applyControlToken(parameters) {
-	if (!parameters.isPastEnd && parameters.include) {
-		parameters.returnValue += parameters.token.code;
+function applyControlToken(state) {
+	if (!state.isPastEnd && state.include) {
+		state.returnValue += state.token.code;
 	}
-
-	return parameters;
 }
 
-function applyCharacterToken(parameters) {
+function applyCharacterToken(state) {
 	if (
-		!parameters.include
-		&& parameters.position >= parameters.start
-		&& !parameters.token.isGraphemeContinuation
+		!state.include
+		&& state.position >= state.start
+		&& !state.token.isGraphemeContinuation
 	) {
-		parameters.include = true;
-		parameters.returnValue = [...parameters.activeStyles.values()].join('');
-		if (parameters.activeHyperlink) {
-			parameters.activeHyperlinkOutputIndex = parameters.returnValue.length;
-			parameters.returnValue += parameters.activeHyperlink.code;
+		state.include = true;
+		state.returnValue = [...state.activeStyles.values()].join('');
+		if (state.activeHyperlink) {
+			state.activeHyperlinkOutputIndex = state.returnValue.length;
+			state.returnValue += state.activeHyperlink.code;
 		}
 	}
 
-	if (parameters.include) {
-		parameters.returnValue += parameters.token.value;
-		parameters.pendingSgrOutputIndex = undefined;
-		parameters.pendingSgrActiveStyles = undefined;
-		if (parameters.activeHyperlink) {
-			parameters.activeHyperlinkHasVisibleText = true;
+	if (state.include) {
+		state.returnValue += state.token.value;
+		state.pendingSgrOutputIndex = undefined;
+		state.pendingSgrActiveStyles = undefined;
+		if (state.activeHyperlink) {
+			state.activeHyperlinkHasVisibleText = true;
 		}
 	}
 
-	parameters.position += parameters.token.visibleWidth;
-	return parameters;
+	state.position += state.token.visibleWidth;
 }
 
 const tokenHandlers = {
@@ -192,13 +198,8 @@ const tokenHandlers = {
 	character: applyCharacterToken,
 };
 
-function applyToken(parameters) {
-	const tokenHandler = tokenHandlers[parameters.token.type];
-	if (!tokenHandler) {
-		return parameters;
-	}
-
-	return tokenHandler(parameters);
+function applyToken(state) {
+	tokenHandlers[state.token.type]?.(state);
 }
 
 function createHasContinuationAheadMap(tokens) {
@@ -233,18 +234,23 @@ function isPastEndBoundary(token, position, end) {
 export default function sliceAnsi(string, start, end) {
 	const tokens = tokenizeAnsi(string, {endCharacter: end});
 	const hasContinuationAhead = createHasContinuationAheadMap(tokens);
-	let activeStyles = new Map();
-	let activeHyperlink;
-	let activeHyperlinkHasVisibleText = false;
-	let activeHyperlinkOutputIndex;
-	let pendingSgrOutputIndex;
-	let pendingSgrActiveStyles;
-	let position = 0;
-	let returnValue = '';
-	let include = false;
+	const state = {
+		start,
+		token: undefined,
+		isPastEnd: false,
+		activeStyles: new Map(),
+		activeHyperlink: undefined,
+		activeHyperlinkHasVisibleText: false,
+		activeHyperlinkOutputIndex: undefined,
+		pendingSgrOutputIndex: undefined,
+		pendingSgrActiveStyles: undefined,
+		position: 0,
+		returnValue: '',
+		include: false,
+	};
 
 	for (const [tokenIndex, token] of tokens.entries()) {
-		let isPastEnd = isPastEndBoundary(token, position, end);
+		let isPastEnd = isPastEndBoundary(token, state.position, end);
 		if (
 			isPastEnd
 			&& token.type !== 'character'
@@ -258,60 +264,35 @@ export default function sliceAnsi(string, start, end) {
 			&& token.type === 'character'
 			&& !token.isGraphemeContinuation
 		) {
-			if (activeHyperlink && !activeHyperlinkHasVisibleText) {
-				const hyperlinkState = {
-					activeHyperlink,
-					activeHyperlinkHasVisibleText,
-					activeHyperlinkOutputIndex,
-					pendingSgrOutputIndex,
-					returnValue,
-				};
-				discardPendingHyperlink(hyperlinkState);
-				({
-					activeHyperlink,
-					activeHyperlinkHasVisibleText,
-					activeHyperlinkOutputIndex,
-					pendingSgrOutputIndex,
-					returnValue,
-				} = hyperlinkState);
+			if (state.activeHyperlink && !state.activeHyperlinkHasVisibleText) {
+				discardPendingHyperlink(state);
 			}
 
-			if (pendingSgrOutputIndex !== undefined) {
-				returnValue = returnValue.slice(0, pendingSgrOutputIndex);
-				activeStyles = pendingSgrActiveStyles;
-				pendingSgrOutputIndex = undefined;
-				pendingSgrActiveStyles = undefined;
+			if (state.pendingSgrOutputIndex !== undefined) {
+				state.returnValue = state.returnValue.slice(0, state.pendingSgrOutputIndex);
+				state.activeStyles = state.pendingSgrActiveStyles;
+				state.pendingSgrOutputIndex = undefined;
+				state.pendingSgrActiveStyles = undefined;
 			}
 
 			break;
 		}
 
-		({activeStyles, activeHyperlink, activeHyperlinkHasVisibleText, activeHyperlinkOutputIndex, pendingSgrOutputIndex, pendingSgrActiveStyles, position, returnValue, include} = applyToken({
-			token,
-			isPastEnd,
-			start,
-			activeStyles,
-			activeHyperlink,
-			activeHyperlinkHasVisibleText,
-			activeHyperlinkOutputIndex,
-			pendingSgrOutputIndex,
-			pendingSgrActiveStyles,
-			position,
-			returnValue,
-			include,
-		}));
+		state.token = token;
+		state.isPastEnd = isPastEnd;
+		applyToken(state);
 	}
 
-	if (!include) {
+	if (!state.include) {
 		return '';
 	}
 
-	if (activeHyperlink) {
-		returnValue += closeHyperlink(activeHyperlink);
+	if (state.activeHyperlink) {
+		settleActiveHyperlink(state);
 	}
 
 	// Disable active codes at the end
-	returnValue += undoAnsiCodes(activeStyles);
+	state.returnValue += undoAnsiCodes(state.activeStyles);
 
-	return returnValue;
+	return state.returnValue;
 }

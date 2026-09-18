@@ -2,6 +2,7 @@ import test from 'ava';
 import chalk from 'chalk';
 import stripAnsi from 'strip-ansi';
 import randomItem from 'random-item';
+import tokenizeAnsi from './tokenize-ansi.js';
 import sliceAnsi from './index.js';
 
 chalk.level = 1;
@@ -796,4 +797,112 @@ test('returns empty for out-of-range start with active hyperlink before it', t =
 test('treats malformed OSC tail as non-visible', t => {
 	const input = `${ESCAPE}]8;;https://example.com${ANSI_BELL}link${ESCAPE}]8;;broken plain`;
 	t.is(stripForVisibleComparison(sliceAnsi(input, 0)), 'link');
+});
+
+test('does not leave a hyperlink open when a new open replaces an active one', t => {
+	const open1 = `${ESCAPE}]8;;https://one.test${ANSI_BELL}`;
+	const open2 = `${ESCAPE}]8;;https://two.test${ANSI_BELL}`;
+	const close = `${ESCAPE}]8;;${ANSI_BELL}`;
+
+	t.is(sliceAnsi(`X${open1}${open2}${close}`, 0), 'X');
+	t.is(sliceAnsi(`X${open1}${open2}a${close}`, 0), `X${open2}a${close}`);
+	t.is(sliceAnsi(`${open1}a${open2}${close}`, 0), `${open1}a${close}`);
+	t.is(sliceAnsi(`${open1}a${open2}b${close}`, 0), `${open1}a${close}${open2}b${close}`);
+});
+
+test('adjusts pending SGR index when an open replaces an empty hyperlink', t => {
+	const open1 = `${ESCAPE}]8;;https://a-very-long-url-one.test${ANSI_BELL}`;
+	const open2 = `${ESCAPE}]8;;https://two.test${ANSI_BELL}`;
+	const close = `${ESCAPE}]8;;${ANSI_BELL}`;
+
+	t.is(sliceAnsi(`X${open1}${ESCAPE}[1m${open2}😀${close}`, 0, 2), 'X');
+});
+
+test('discards a trailing empty hyperlink', t => {
+	const open = `${ESCAPE}]8;;https://example.com${ANSI_BELL}`;
+
+	t.is(sliceAnsi(`X${open}`, 0), 'X');
+	t.is(sliceAnsi(`X${open}`, 0, 1), 'X');
+	t.is(sliceAnsi(`${ESCAPE}[31mX${open}`, 0), `${ESCAPE}[31mX${ESCAPE}[39m`);
+});
+
+test('keeps hyperlinks balanced for every slice range when opens replace each other', t => {
+	const open1 = `${ESCAPE}]8;;https://one.test${ANSI_BELL}`;
+	const open2 = `${ESCAPE}]8;;https://two.test${ANSI_BELL}`;
+	const close = `${ESCAPE}]8;;${ANSI_BELL}`;
+	const input = `A${open1}bc${open2}${open1}de${chalk.red('f')}${open2}g${close}h`;
+
+	for (let start = 0; start <= 8; start++) {
+		for (let end = start; end <= 8; end++) {
+			const output = sliceAnsi(input, start, end);
+			const hyperlinkTokens = tokenizeAnsi(output).filter(token => token.type === 'hyperlink');
+
+			for (const [index, token] of hyperlinkTokens.entries()) {
+				t.is(token.action, index % 2 === 0 ? 'open' : 'close', `unbalanced hyperlinks in slice(${start}, ${end})`);
+			}
+
+			t.is(hyperlinkTokens.length % 2, 0, `hyperlink left open in slice(${start}, ${end})`);
+			assertVisibleSliceMatchesNative(t, input, start, end);
+		}
+	}
+});
+
+test('slices across a replaced hyperlink boundary', t => {
+	const open1 = `${ESCAPE}]8;;https://one.test${ANSI_BELL}`;
+	const open2 = `${ESCAPE}]8;;https://two.test${ANSI_BELL}`;
+	const close = `${ESCAPE}]8;;${ANSI_BELL}`;
+	const input = `${open1}ab${open2}cd${close}`;
+
+	t.is(sliceAnsi(input, 0, 1), `${open1}a${close}`);
+	t.is(sliceAnsi(input, 0, 2), `${open1}ab${close}`);
+	t.is(sliceAnsi(input, 0, 3), `${open1}ab${close}${open2}c${close}`);
+	t.is(sliceAnsi(input, 1, 3), `${open1}b${close}${open2}c${close}`);
+	t.is(sliceAnsi(input, 2), `${open2}cd${close}`);
+	t.is(sliceAnsi(input, 3), `${open2}d${close}`);
+});
+
+test('keeps styles that change between replaced hyperlinks', t => {
+	const open1 = `${ESCAPE}]8;;https://one.test${ANSI_BELL}`;
+	const open2 = `${ESCAPE}]8;;https://two.test${ANSI_BELL}`;
+	const close = `${ESCAPE}]8;;${ANSI_BELL}`;
+	const input = `${open1}a${ESCAPE}[31m${open2}b${close}${ESCAPE}[39m`;
+
+	t.is(sliceAnsi(input, 0), `${open1}a${ESCAPE}[31m${close}${open2}b${close}${ESCAPE}[39m`);
+	t.is(sliceAnsi(input, 1), `${ESCAPE}[31m${open2}b${close}${ESCAPE}[39m`);
+	t.is(sliceAnsi(input, 0, 1), `${open1}a${close}`);
+});
+
+test('handles a chain of replacing hyperlink opens', t => {
+	const open1 = `${ESCAPE}]8;;https://one.test${ANSI_BELL}`;
+	const open2 = `${ESCAPE}]8;;https://two.test${ANSI_BELL}`;
+	const close = `${ESCAPE}]8;;${ANSI_BELL}`;
+
+	t.is(sliceAnsi(`${open1}a${open2}${open1}b${close}`, 0), `${open1}a${close}${open1}b${close}`);
+	t.is(sliceAnsi(`X${open1}${open2}${open1}${close}Y`, 0), 'XY');
+	t.is(sliceAnsi(`${open1}${open2}a${close}`, 0), `${open2}a${close}`);
+});
+
+test('closes a replaced hyperlink when the string has no close', t => {
+	const open1 = `${ESCAPE}]8;;https://one.test${ANSI_BELL}`;
+	const open2 = `${ESCAPE}]8;;https://two.test${ANSI_BELL}`;
+	const close = `${ESCAPE}]8;;${ANSI_BELL}`;
+
+	t.is(sliceAnsi(`${open1}a${open2}b`, 0), `${open1}a${close}${open2}b${close}`);
+	t.is(sliceAnsi(`${open1}a${open2}`, 0), `${open1}a${close}`);
+});
+
+test('closes a replaced hyperlink with its own terminator and prefix', t => {
+	const open1 = `${ESCAPE}]8;;https://one.test${ANSI_STRING_TERMINATOR}`;
+	const open2 = `${C1_OSC}8;;https://two.test${ANSI_BELL}`;
+	const close = `${C1_OSC}8;;${ANSI_BELL}`;
+
+	t.is(sliceAnsi(`${open1}a${open2}b${close}`, 0), `${open1}a${ESCAPE}]8;;${ANSI_STRING_TERMINATOR}${open2}b${close}`);
+});
+
+test('keeps parameters of a replacing hyperlink open', t => {
+	const open1 = `${ESCAPE}]8;;https://one.test${ANSI_BELL}`;
+	const open2 = `${ESCAPE}]8;id=abc;https://two.test${ANSI_BELL}`;
+	const close = `${ESCAPE}]8;;${ANSI_BELL}`;
+
+	t.is(sliceAnsi(`${open1}a${open2}b${close}`, 0), `${open1}a${close}${open2}b${close}`);
 });
