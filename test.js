@@ -906,3 +906,21 @@ test('keeps parameters of a replacing hyperlink open', t => {
 
 	t.is(sliceAnsi(`${open1}a${open2}b${close}`, 0), `${open1}a${close}${open2}b${close}`);
 });
+
+test('a halfwidth voiced sound mark widens its cluster', t => {
+	// U+FF9E is a spacing mark in the Halfwidth and Fullwidth Forms block, so `ｶﾞ` occupies two columns.
+	// Counting the cluster as one made every slice one column too wide.
+	t.is(sliceAnsi('ｶﾞ', 0, 1), '');
+	t.is(sliceAnsi('ｶﾞ', 0, 2), 'ｶﾞ');
+	t.is(sliceAnsi('aﾞ', 0, 1), '');
+	t.is(sliceAnsi('ｳﾞｰ', 0, 2), 'ｳﾞ');
+	t.is(sliceAnsi('ｳﾞｰ', 0, 3), 'ｳﾞｰ');
+
+	// A full slice of the text is unchanged.
+	t.is(sliceAnsi('ﾊﾞﾊﾞﾊﾞﾊﾞ', 0, 8), 'ﾊﾞﾊﾞﾊﾞﾊﾞ');
+
+	// Plain text is still one column per cluster.
+	t.is(sliceAnsi('abc', 0, 1), 'a');
+	t.is(sliceAnsi('abc', 0, 3), 'abc');
+	t.is(sliceAnsi('á', 0, 1), 'á');
+});

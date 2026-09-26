@@ -126,11 +126,20 @@ function isEmojiStyleGrapheme(grapheme) {
 
 function getGraphemeWidth(grapheme) {
 	let regionalIndicatorCount = 0;
+	let isFirst = true;
 	for (const character of grapheme) {
 		const codePoint = character.codePointAt(0);
 		if (isFullwidthCodePoint(codePoint)) {
 			return 2;
 		}
+
+		// A spacing mark or another Halfwidth and Fullwidth Forms character after the first adds a column of its own, so
+		// `ｶ` plus a halfwidth voiced sound mark is two columns wide rather than one.
+		if (!isFirst && codePoint >= 0xFF_00 && codePoint <= 0xFF_EF) {
+			return 2;
+		}
+
+		isFirst = false;
 
 		if (isRegionalIndicatorCodePoint(codePoint)) {
 			regionalIndicatorCount++;
