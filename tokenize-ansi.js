@@ -20,8 +20,8 @@ const ESCAPES = new Set([
 	C1_APC_CODE_POINT,
 ]);
 
-const ESCAPE = '\u001B';
-const ANSI_BELL = '\u0007';
+const ESCAPE = '\u{1B}';
+const ANSI_BELL = '\u{7}';
 const ANSI_CSI = '[';
 const ANSI_OSC = ']';
 const ANSI_DCS = 'P';
@@ -31,8 +31,8 @@ const ANSI_APC = '_';
 const ANSI_SGR_TERMINATOR = 'm';
 const ANSI_OSC_TERMINATOR = '\\';
 const ANSI_STRING_TERMINATOR = `${ESCAPE}${ANSI_OSC_TERMINATOR}`;
-const C1_OSC = '\u009D';
-const C1_STRING_TERMINATOR = '\u009C';
+const C1_OSC = '\u{9D}';
+const C1_STRING_TERMINATOR = '\u{9C}';
 const ANSI_HYPERLINK_ESC_PREFIX = `${ESCAPE}${ANSI_OSC}8;`;
 const ANSI_HYPERLINK_C1_PREFIX = `${C1_OSC}8;`;
 const ANSI_HYPERLINK_ESC_CLOSE = `${ANSI_HYPERLINK_ESC_PREFIX};`;
@@ -129,13 +129,13 @@ function getGraphemeWidth(grapheme) {
 	let isFirst = true;
 	for (const character of grapheme) {
 		const codePoint = character.codePointAt(0);
-		if (isFullwidthCodePoint(codePoint)) {
-			return 2;
-		}
 
 		// A spacing mark or another Halfwidth and Fullwidth Forms character after the first adds a column of its own, so
 		// `ｶ` plus a halfwidth voiced sound mark is two columns wide rather than one.
-		if (!isFirst && codePoint >= 0xFF_00 && codePoint <= 0xFF_EF) {
+		if (
+			isFullwidthCodePoint(codePoint)
+			|| (!isFirst && codePoint >= 0xFF_00 && codePoint <= 0xFF_EF)
+		) {
 			return 2;
 		}
 
@@ -146,23 +146,11 @@ function getGraphemeWidth(grapheme) {
 		}
 	}
 
-	if (regionalIndicatorCount >= 1) {
-		return 2;
-	}
-
-	if (isEmojiStyleGrapheme(grapheme)) {
-		return 2;
-	}
-
-	return 1;
+	return (regionalIndicatorCount >= 1) || isEmojiStyleGrapheme(grapheme) ? 2 : 1;
 }
 
 function getSgrPrefix(code) {
-	if (code.startsWith('\u009B')) {
-		return '\u009B';
-	}
-
-	return `${ESCAPE}${ANSI_CSI}`;
+	return code.startsWith('\u{9B}') ? '\u{9B}' : `${ESCAPE}${ANSI_CSI}`;
 }
 
 function createSgrCode(prefix, values) {
@@ -176,7 +164,7 @@ function getSgrFragments(code) {
 
 	if (code.startsWith(`${ESCAPE}${ANSI_CSI}`)) {
 		parameterString = code.slice(2, -1);
-	} else if (code.startsWith('\u009B')) {
+	} else if (code.startsWith('\u{9B}')) {
 		parameterString = code.slice(1, -1);
 	} else {
 		return fragments;
@@ -185,6 +173,9 @@ function getSgrFragments(code) {
 	const rawCodes = parameterString.length === 0 ? [String(SGR_RESET_CODE)] : parameterString.split(';');
 	let index = 0;
 	while (index < rawCodes.length) {
+		// SGR parameters come from untrusted input, and `parseInt` with radix 10 differs from `Number()` on partial parses
+		// such as `1e3` or `0x1f`, which must not be read as a colour code.
+		// eslint-disable-next-line unicorn/prefer-number-coercion
 		const codeNumber = Number.parseInt(rawCodes[index], 10);
 		if (Number.isNaN(codeNumber)) {
 			index++;
@@ -198,6 +189,7 @@ function getSgrFragments(code) {
 		}
 
 		if (codeNumber === SGR_EXTENDED_FOREGROUND_CODE || codeNumber === SGR_EXTENDED_BACKGROUND_CODE) {
+			// eslint-disable-next-line unicorn/prefer-number-coercion -- Same reason as above.
 			const colorType = Number.parseInt(rawCodes[index + 1], 10);
 			if (colorType === SGR_COLOR_TYPE_ANSI_256 && index + SGR_ANSI_256_LAST_PARAMETER_OFFSET < rawCodes.length) {
 				const openCode = createSgrCode(sgrPrefix, rawCodes.slice(index, index + SGR_ANSI_256_FRAGMENT_LENGTH));
@@ -290,7 +282,7 @@ function parseCsiCode(string, index) {
 
 		if (isCsiFinalCharacter(codePoint)) {
 			const code = string.slice(index, sequenceIndex + 1);
-			if (string[sequenceIndex] !== ANSI_SGR_TERMINATOR || !hasCanonicalSgrParameters) {
+			if (!hasCanonicalSgrParameters || string[sequenceIndex] !== ANSI_SGR_TERMINATOR) {
 				return createControlParseResult(code, sequenceIndex + 1);
 			}
 
@@ -408,7 +400,7 @@ function parseHyperlinkCode(string, index) {
 function parseControlStringCode(string, index) {
 	const codePoint = string.codePointAt(index);
 	let sequenceStartIndex;
-	let supportsBellTerminator = false;
+	let isBellTerminatorSupported = false;
 
 	switch (codePoint) {
 		case ESCAPE_CODE_POINT: {
@@ -417,7 +409,7 @@ function parseControlStringCode(string, index) {
 				case ANSI_OSC: {
 					// OSC accepts ST (ECMA-48) and BEL (xterm compatibility extension).
 					sequenceStartIndex = index + 2;
-					supportsBellTerminator = true;
+					isBellTerminatorSupported = true;
 					break;
 				}
 
@@ -443,7 +435,7 @@ function parseControlStringCode(string, index) {
 
 		case C1_OSC_CODE_POINT: {
 			sequenceStartIndex = index + 1;
-			supportsBellTerminator = true;
+			isBellTerminatorSupported = true;
 			break;
 		}
 
@@ -465,7 +457,7 @@ function parseControlStringCode(string, index) {
 	}
 
 	for (let sequenceIndex = sequenceStartIndex; sequenceIndex < string.length; sequenceIndex++) {
-		if (supportsBellTerminator && string[sequenceIndex] === ANSI_BELL) {
+		if (isBellTerminatorSupported && string[sequenceIndex] === ANSI_BELL) {
 			return createControlParseResult(string.slice(index, sequenceIndex + 1), sequenceIndex + 1);
 		}
 
@@ -493,12 +485,7 @@ function parseAnsiCode(string, index) {
 		}
 	}
 
-	const controlStringCode = parseControlStringCode(string, index);
-	if (controlStringCode) {
-		return controlStringCode;
-	}
-
-	return parseCsiCode(string, index);
+	return parseControlStringCode(string, index) || parseCsiCode(string, index);
 }
 
 function appendTrailingAnsiTokens(string, index, tokens) {
@@ -603,7 +590,7 @@ function applyGraphemeMetadata(visibleCharacters) {
 	}
 }
 
-function tokenizeAnsiWithVisibleSegmentation(string, {endCharacter = Number.POSITIVE_INFINITY} = {}) {
+function tokenizeAnsiWithVisibleSegmentation(string, {endCharacter = Infinity} = {}) {
 	const tokens = [];
 	const visibleCharacters = collectVisibleCharacters(string);
 	applyGraphemeMetadata(visibleCharacters);
@@ -642,15 +629,17 @@ function tokenizeAnsiWithVisibleSegmentation(string, {endCharacter = Number.POSI
 		visibleCharacterIndex++;
 		visibleCount += token.visibleWidth;
 
-		if (visibleCount >= endCharacter) {
-			const nextVisibleCharacter = visibleCharacters[visibleCharacterIndex];
-			if (
-				!nextVisibleCharacter
-				|| !nextVisibleCharacter.isGraphemeContinuation
-			) {
-				index = appendTrailingAnsiTokens(string, index, tokens);
-				break;
-			}
+		if (visibleCount < endCharacter) {
+			continue;
+		}
+
+		const nextVisibleCharacter = visibleCharacters[visibleCharacterIndex];
+		if (
+			!nextVisibleCharacter
+			|| !nextVisibleCharacter.isGraphemeContinuation
+		) {
+			index = appendTrailingAnsiTokens(string, index, tokens);
+			break;
 		}
 	}
 
@@ -697,17 +686,13 @@ function hasAnsiSplitContinuationAhead(string, startIndex, previousVisibleValue,
 		}
 
 		const characterToken = parseCharacterTokenWithRawSegmentation(string, index, graphemeSegments);
-		if (!characterToken) {
-			return true;
-		}
-
-		return areValuesInSameGrapheme(previousVisibleValue, characterToken.token.value);
+		return characterToken ? areValuesInSameGrapheme(previousVisibleValue, characterToken.token.value) : true;
 	}
 
 	return false;
 }
 
-export default function tokenizeAnsi(string, {endCharacter = Number.POSITIVE_INFINITY} = {}) {
+export default function tokenizeAnsi(string, {endCharacter = Infinity} = {}) {
 	const tokens = [];
 	const graphemeSegments = GRAPHEME_SEGMENTER.segment(string);
 
@@ -729,15 +714,9 @@ export default function tokenizeAnsi(string, {endCharacter = Number.POSITIVE_INF
 		}
 
 		const characterToken = parseCharacterTokenWithRawSegmentation(string, index, graphemeSegments);
-		if (!characterToken) {
-			return tokenizeAnsiWithVisibleSegmentation(string, {endCharacter});
-		}
-
-		if (
-			hasAnsiSinceLastVisible
+		if (!characterToken || (hasAnsiSinceLastVisible
 			&& previousVisibleValue
-			&& areValuesInSameGrapheme(previousVisibleValue, characterToken.token.value)
-		) {
+			&& areValuesInSameGrapheme(previousVisibleValue, characterToken.token.value))) {
 			return tokenizeAnsiWithVisibleSegmentation(string, {endCharacter});
 		}
 

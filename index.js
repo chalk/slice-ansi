@@ -2,6 +2,8 @@ import tokenizeAnsi from './tokenize-ansi.js';
 
 function applySgrFragments(activeStyles, fragments) {
 	for (const fragment of fragments) {
+		// Each `break` below ends one fragment's `switch`, not the loop.
+		/* eslint-disable unicorn/no-break-in-nested-loop -- A `switch` dispatching one enum value. */
 		switch (fragment.type) {
 			case 'reset': {
 				activeStyles.clear();
@@ -23,12 +25,15 @@ function applySgrFragments(activeStyles, fragments) {
 				break;
 			}
 		}
+		/* eslint-enable unicorn/no-break-in-nested-loop */
 	}
 
 	return activeStyles;
 }
 
 function undoAnsiCodes(activeStyles) {
+	// `Iterator#toArray` is newer than the Node.js 22 floor.
+	// eslint-disable-next-line unicorn/prefer-iterator-to-array
 	return [...activeStyles.keys()].toReversed().join('');
 }
 
@@ -172,6 +177,7 @@ function applyCharacterToken(state) {
 		&& !state.token.isGraphemeContinuation
 	) {
 		state.include = true;
+		// eslint-disable-next-line unicorn/prefer-iterator-to-array -- Same reason as in `undoAnsiCodes`.
 		state.returnValue = [...state.activeStyles.values()].join('');
 		if (state.activeHyperlink) {
 			state.activeHyperlinkOutputIndex = state.returnValue.length;
@@ -191,26 +197,26 @@ function applyCharacterToken(state) {
 	state.position += state.token.visibleWidth;
 }
 
-const tokenHandlers = {
-	sgr: applySgrToken,
-	hyperlink: applyHyperlinkToken,
-	control: applyControlToken,
-	character: applyCharacterToken,
-};
+const tokenHandlers = new Map([
+	['sgr', applySgrToken],
+	['hyperlink', applyHyperlinkToken],
+	['control', applyControlToken],
+	['character', applyCharacterToken],
+]);
 
 function applyToken(state) {
-	tokenHandlers[state.token.type]?.(state);
+	tokenHandlers.get(state.token.type)?.(state);
 }
 
 function createHasContinuationAheadMap(tokens) {
 	const hasContinuationAhead = Array.from({length: tokens.length}, () => false);
-	let nextCharacterIsContinuation = false;
+	let isNextCharacterContinuation = false;
 
 	for (let tokenIndex = tokens.length - 1; tokenIndex >= 0; tokenIndex--) {
 		const token = tokens[tokenIndex];
-		hasContinuationAhead[tokenIndex] = nextCharacterIsContinuation;
+		hasContinuationAhead[tokenIndex] = isNextCharacterContinuation;
 		if (token.type === 'character') {
-			nextCharacterIsContinuation = Boolean(token.isGraphemeContinuation);
+			isNextCharacterContinuation = Boolean(token.isGraphemeContinuation);
 		}
 	}
 
@@ -254,6 +260,8 @@ export default function sliceAnsi(string, start, end) {
 		if (
 			isPastEnd
 			&& token.type !== 'character'
+			// This indexes a dense array by loop counter, not a lookup on a key bag.
+			// eslint-disable-next-line unicorn/no-computed-property-existence-check
 			&& hasContinuationAhead[tokenIndex]
 		) {
 			isPastEnd = false;
