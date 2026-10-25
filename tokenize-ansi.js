@@ -1,5 +1,5 @@
 import ansiStyles from 'ansi-styles';
-import isFullwidthCodePoint from 'is-fullwidth-code-point';
+import stringWidth from 'string-width';
 
 const ESCAPE_CODE_POINT = 27;
 const C1_DCS_CODE_POINT = 144;
@@ -49,8 +49,6 @@ const CODE_POINT_CSI_INTERMEDIATE_START = ' '.codePointAt(0);
 const CODE_POINT_CSI_INTERMEDIATE_END = '/'.codePointAt(0);
 const CODE_POINT_CSI_FINAL_START = '@'.codePointAt(0);
 const CODE_POINT_CSI_FINAL_END = '~'.codePointAt(0);
-const REGIONAL_INDICATOR_SYMBOL_LETTER_A = 127_462;
-const REGIONAL_INDICATOR_SYMBOL_LETTER_Z = 127_487;
 const SGR_RESET_CODE = 0;
 const SGR_EXTENDED_FOREGROUND_CODE = 38;
 const SGR_DEFAULT_FOREGROUND_CODE = 39;
@@ -62,9 +60,6 @@ const SGR_ANSI_256_FRAGMENT_LENGTH = 3;
 const SGR_TRUECOLOR_FRAGMENT_LENGTH = 5;
 const SGR_ANSI_256_LAST_PARAMETER_OFFSET = 2;
 const SGR_TRUECOLOR_LAST_PARAMETER_OFFSET = 4;
-const VARIATION_SELECTOR_16_CODE_POINT = 65_039;
-const COMBINING_ENCLOSING_KEYCAP_CODE_POINT = 8419;
-const EMOJI_PRESENTATION_GRAPHEME_REGEX = /\p{Emoji_Presentation}/v;
 const GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, {granularity: 'grapheme'});
 
 const endCodeNumbers = new Set();
@@ -92,10 +87,6 @@ function isCsiFinalCharacter(codePoint) {
 	return codePoint >= CODE_POINT_CSI_FINAL_START && codePoint <= CODE_POINT_CSI_FINAL_END;
 }
 
-function isRegionalIndicatorCodePoint(codePoint) {
-	return codePoint >= REGIONAL_INDICATOR_SYMBOL_LETTER_A && codePoint <= REGIONAL_INDICATOR_SYMBOL_LETTER_Z;
-}
-
 function createControlParseResult(code, endIndex) {
 	return {
 		token: {
@@ -104,49 +95,6 @@ function createControlParseResult(code, endIndex) {
 		},
 		endIndex,
 	};
-}
-
-function isEmojiStyleGrapheme(grapheme) {
-	if (EMOJI_PRESENTATION_GRAPHEME_REGEX.test(grapheme)) {
-		return true;
-	}
-
-	for (const character of grapheme) {
-		const codePoint = character.codePointAt(0);
-		if (
-			codePoint === VARIATION_SELECTOR_16_CODE_POINT
-			|| codePoint === COMBINING_ENCLOSING_KEYCAP_CODE_POINT
-		) {
-			return true;
-		}
-	}
-
-	return false;
-}
-
-function getGraphemeWidth(grapheme) {
-	let regionalIndicatorCount = 0;
-	let isFirst = true;
-	for (const character of grapheme) {
-		const codePoint = character.codePointAt(0);
-
-		// A spacing mark or another Halfwidth and Fullwidth Forms character after the first adds a column of its own, so
-		// `ｶ` plus a halfwidth voiced sound mark is two columns wide rather than one.
-		if (
-			isFullwidthCodePoint(codePoint)
-			|| (!isFirst && codePoint >= 0xFF_00 && codePoint <= 0xFF_EF)
-		) {
-			return 2;
-		}
-
-		isFirst = false;
-
-		if (isRegionalIndicatorCodePoint(codePoint)) {
-			regionalIndicatorCount++;
-		}
-	}
-
-	return (regionalIndicatorCount >= 1) || isEmojiStyleGrapheme(grapheme) ? 2 : 1;
 }
 
 function getSgrPrefix(code) {
@@ -173,8 +121,7 @@ function getSgrFragments(code) {
 	const rawCodes = parameterString.length === 0 ? [String(SGR_RESET_CODE)] : parameterString.split(';');
 	let index = 0;
 	while (index < rawCodes.length) {
-		// SGR parameters come from untrusted input, and `parseInt` with radix 10 differs from `Number()` on partial parses
-		// such as `1e3` or `0x1f`, which must not be read as a colour code.
+		// SGR parameters come from untrusted input, and `parseInt` with radix 10 differs from `Number()` on partial parses such as `1e3` or `0x1f`, which must not be read as a color code.
 		// eslint-disable-next-line unicorn/prefer-number-coercion
 		const codeNumber = Number.parseInt(rawCodes[index], 10);
 		if (Number.isNaN(codeNumber)) {
@@ -507,6 +454,7 @@ function appendTrailingAnsiTokens(string, index, tokens) {
 	return index;
 }
 
+// Columns come from `string-width`, so a slice is never wider than what `string-width` measures for it.
 function parseCharacterTokenWithRawSegmentation(string, index, graphemeSegments) {
 	const segment = graphemeSegments.containing(index);
 	if (!segment || segment.index !== index) {
@@ -518,7 +466,7 @@ function parseCharacterTokenWithRawSegmentation(string, index, graphemeSegments)
 			type: 'character',
 			// Intentionally preserve UAX29 behavior (GB3): CRLF is one grapheme cluster.
 			value: segment.segment,
-			visibleWidth: getGraphemeWidth(segment.segment),
+			visibleWidth: stringWidth(segment.segment),
 			isGraphemeContinuation: false,
 		},
 		endIndex: index + segment.segment.length,
@@ -551,6 +499,7 @@ function collectVisibleCharacters(string) {
 	return visibleCharacters;
 }
 
+// The first code point of a grapheme carries the width of the whole grapheme, and the rest take no columns, so a grapheme is never split across a slice boundary.
 function applyGraphemeMetadata(visibleCharacters) {
 	if (visibleCharacters.length === 0) {
 		return;
@@ -580,7 +529,7 @@ function applyGraphemeMetadata(visibleCharacters) {
 			graphemeIndex < visibleCharacters.length
 			&& scalarOffsets[graphemeIndex] < segment.index + segment.segment.length
 		) {
-			visibleCharacters[graphemeIndex].visibleWidth = isFirstInGrapheme ? getGraphemeWidth(segment.segment) : 0;
+			visibleCharacters[graphemeIndex].visibleWidth = isFirstInGrapheme ? stringWidth(segment.segment) : 0;
 			visibleCharacters[graphemeIndex].isGraphemeContinuation = !isFirstInGrapheme;
 			isFirstInGrapheme = false;
 			graphemeIndex++;
@@ -590,6 +539,7 @@ function applyGraphemeMetadata(visibleCharacters) {
 	}
 }
 
+// Slow path for when ANSI codes sit inside a grapheme, for example between a letter and its combining mark. It segments the text with the ANSI codes removed, and then emits one token per code point.
 function tokenizeAnsiWithVisibleSegmentation(string, {endCharacter = Infinity} = {}) {
 	const tokens = [];
 	const visibleCharacters = collectVisibleCharacters(string);
@@ -611,17 +561,13 @@ function tokenizeAnsiWithVisibleSegmentation(string, {endCharacter = Infinity} =
 		}
 
 		const value = String.fromCodePoint(codePoint);
+		// Always defined, as `collectVisibleCharacters` walks the same code points and skips the same ANSI codes.
 		const visibleCharacter = visibleCharacters[visibleCharacterIndex];
-		let visibleWidth = isFullwidthCodePoint(codePoint) ? 2 : value.length;
-		if (visibleCharacter) {
-			visibleWidth = visibleCharacter.visibleWidth;
-		}
-
 		const token = {
 			type: 'character',
 			value,
-			visibleWidth,
-			isGraphemeContinuation: visibleCharacter ? visibleCharacter.isGraphemeContinuation : false,
+			visibleWidth: visibleCharacter.visibleWidth,
+			isGraphemeContinuation: visibleCharacter.isGraphemeContinuation,
 		};
 
 		tokens.push(token);
@@ -692,6 +638,7 @@ function hasAnsiSplitContinuationAhead(string, startIndex, previousVisibleValue,
 	return false;
 }
 
+// Fast path that tokenizes one grapheme at a time. It falls back to `tokenizeAnsiWithVisibleSegmentation` when an ANSI code splits a grapheme.
 export default function tokenizeAnsi(string, {endCharacter = Infinity} = {}) {
 	const tokens = [];
 	const graphemeSegments = GRAPHEME_SEGMENTER.segment(string);
@@ -714,9 +661,14 @@ export default function tokenizeAnsi(string, {endCharacter = Infinity} = {}) {
 		}
 
 		const characterToken = parseCharacterTokenWithRawSegmentation(string, index, graphemeSegments);
-		if (!characterToken || (hasAnsiSinceLastVisible
+		if (!characterToken) {
+			return tokenizeAnsiWithVisibleSegmentation(string, {endCharacter});
+		}
+
+		const isGraphemeSplitByAnsi = hasAnsiSinceLastVisible
 			&& previousVisibleValue
-			&& areValuesInSameGrapheme(previousVisibleValue, characterToken.token.value))) {
+			&& areValuesInSameGrapheme(previousVisibleValue, characterToken.token.value);
+		if (isGraphemeSplitByAnsi) {
 			return tokenizeAnsiWithVisibleSegmentation(string, {endCharacter});
 		}
 

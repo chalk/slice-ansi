@@ -228,6 +228,7 @@ function isPastEndBoundary(token, position, end) {
 		return false;
 	}
 
+	// A zero-width character at `end` goes to the next slice, so `sliceAnsi(string, 0, n)` and `sliceAnsi(string, n)` do not both drop it.
 	if (position >= end) {
 		return true;
 	}

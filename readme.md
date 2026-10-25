@@ -24,6 +24,11 @@ console.log(sliceAnsi(string, 20, 30));
 
 ### sliceAnsi(string, startSlice, endSlice?)
 
+Columns are counted the same way as [`string-width`](https://github.com/sindresorhus/string-width).
+
+> [!NOTE]
+> Tabs and other control characters take no columns. Replace tabs with spaces first if you need tab stops.
+
 #### string
 
 Type: `string`

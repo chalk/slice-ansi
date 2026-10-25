@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import chalk from 'chalk';
 import stripAnsi from 'strip-ansi';
+import stringWidth from 'string-width';
 import randomItem from 'random-item';
 import tokenizeAnsi from './tokenize-ansi.js';
 import sliceAnsi from './index.js';
@@ -222,10 +223,11 @@ test('does not split ZWJ emoji grapheme clusters', () => {
 	assert.equal(sliceAnsi(input, 3, 4), 'B');
 });
 
-test('treats CRLF as a single grapheme cluster', () => {
+test('counts CRLF as zero width', () => {
 	const input = 'A\r\nB';
-	assert.equal(sliceAnsi(input, 1, 2), '\r\n');
-	assert.equal(sliceAnsi(input, 2, 3), 'B');
+	assert.equal(sliceAnsi(input, 0, 1), 'A');
+	assert.equal(sliceAnsi(input, 1, 2), '\r\nB');
+	assert.equal(sliceAnsi(input, 2, 3), '');
 });
 
 test('does not split styled grapheme clusters with combining marks', () => {
@@ -362,7 +364,7 @@ test('does not include hyperlink escapes when endSlice excludes a wide grapheme'
 test('counts emoji-style graphemes as fullwidth', () => {
 	assert.equal(sliceAnsi('A☺️B', 1, 3), '☺️');
 	assert.equal(sliceAnsi('A1️⃣B', 1, 3), '1️⃣');
-	assert.equal(sliceAnsi('A🇦B', 1, 3), '🇦');
+	assert.equal(sliceAnsi('A🇮🇱B', 1, 3), '🇮🇱');
 });
 
 test('does not exceed endSlice for styled emoji-style graphemes', () => {
@@ -922,4 +924,28 @@ test('a halfwidth voiced sound mark widens its cluster', () => {
 	assert.equal(sliceAnsi('abc', 0, 1), 'a');
 	assert.equal(sliceAnsi('abc', 0, 3), 'abc');
 	assert.equal(sliceAnsi('á', 0, 1), 'á');
+});
+
+test('counts columns the same way as string-width', () => {
+	// Zero-width characters take no column, so they stay with the text after them.
+	assert.equal(sliceAnsi('a\tb', 0, 1), 'a');
+	assert.equal(sliceAnsi('a\tb', 1, 2), '\tb');
+	assert.equal(sliceAnsi('a\u{200B}b', 0, 2), 'a\u{200B}b');
+	assert.equal(sliceAnsi('a\u{1}b', 0, 2), 'a\u{1}b');
+
+	// A lone regional indicator is one column, and a flag is two.
+	assert.equal(sliceAnsi('A🇦B', 1, 2), '🇦');
+
+	// A leading Hangul jamo plus a syllable forms one cluster that is four columns wide.
+	assert.equal(sliceAnsi('ᄀ가B', 0, 3), '');
+	assert.equal(sliceAnsi('ᄀ가B', 0, 4), 'ᄀ가');
+
+	const inputs = ['a\tb c', 'ᄀ가 ab', 'ｶﾞ 🇦 x', 'e\u{301} \r\n 你好', '👨‍👩‍👧 a\u{200B}b', `${chalk.red('ᄀ가')} ${chalk.green('a\tb')}`];
+	for (const input of inputs) {
+		for (let end = 0; end <= stringWidth(input) + 1; end++) {
+			assert.ok(stringWidth(sliceAnsi(input, 0, end)) <= end, `${JSON.stringify(input)} end: ${end}`);
+		}
+
+		assert.equal(stringWidth(sliceAnsi(input, 0)), stringWidth(input));
+	}
 });
