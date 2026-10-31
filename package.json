@@ -1,6 +1,6 @@
 {
 	"name": "slice-ansi",
-	"version": "9.0.1",
+	"version": "10.0.0",
 	"description": "Slice a string with ANSI escape codes",
 	"license": "MIT",
 	"repository": "chalk/slice-ansi",
