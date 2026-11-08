@@ -299,6 +299,33 @@ test('supports true color escape sequences', () => {
 	assert.equal(sliceAnsi('\u{1B}[1m\u{1B}[48;2;255;255;255m\u{1B}[38;2;255;0;0municorn\u{1B}[39m\u{1B}[49m\u{1B}[22m', 0, 3), '\u{1B}[1m\u{1B}[48;2;255;255;255m\u{1B}[38;2;255;0;0muni\u{1B}[39m\u{1B}[49m\u{1B}[22m');
 });
 
+for (const parameters of ['58;5;1', '58;5;0', '58;2;255;0;0', '58;2;1;2;3', '58:2::255:0:0']) {
+	test(`preserves underline color ${parameters}`, () => {
+		const open = `${ESCAPE}[${parameters}m`;
+		const close = `${ESCAPE}[59m`;
+		const input = `${ESCAPE}[4m${open}hello${close}${ESCAPE}[24m`;
+
+		assert.equal(sliceAnsi(input, 0, 3), `${ESCAPE}[4m${open}hel${close}${ESCAPE}[24m`);
+		assert.equal(sliceAnsi(input, 1, 3), `${ESCAPE}[4m${open}el${close}${ESCAPE}[24m`);
+		assert.equal(sliceAnsi(input, 1), `${ESCAPE}[4m${open}ello${close}${ESCAPE}[24m`);
+	});
+}
+
+test('underline color reset preserves other styles', () => {
+	const input = `${ESCAPE}[1;31;48;5;2;58;5;1mA${ESCAPE}[59mBC`;
+	assert.equal(sliceAnsi(input, 1, 2), `${ESCAPE}[1m${ESCAPE}[31m${ESCAPE}[48;5;2mB${ESCAPE}[49m${ESCAPE}[39m${ESCAPE}[22m`);
+});
+
+test('new underline color replaces the previous color', () => {
+	const input = `${ESCAPE}[58;5;1mA${ESCAPE}[58;2;0;255;0mBC`;
+	assert.equal(sliceAnsi(input, 1, 2), `${ESCAPE}[58;2;0;255;0mB${ESCAPE}[59m`);
+});
+
+test('supports C1 underline color sequences', () => {
+	const input = '\u{9B}58;2;255;0;0mhello\u{9B}59m';
+	assert.equal(sliceAnsi(input, 1, 3), '\u{9B}58;2;255;0;0mel\u{1B}[59m');
+});
+
 test('supports colon-delimited truecolor SGR syntax', () => {
 	assert.equal(sliceAnsi('\u{1B}[38:2:255:0:0mred\u{1B}[39m', 0, 1), '\u{1B}[38:2:255:0:0mr\u{1B}[39m');
 });

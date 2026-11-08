@@ -50,10 +50,11 @@ const CODE_POINT_CSI_INTERMEDIATE_END = '/'.codePointAt(0);
 const CODE_POINT_CSI_FINAL_START = '@'.codePointAt(0);
 const CODE_POINT_CSI_FINAL_END = '~'.codePointAt(0);
 const SGR_RESET_CODE = 0;
-const SGR_EXTENDED_FOREGROUND_CODE = 38;
-const SGR_DEFAULT_FOREGROUND_CODE = 39;
-const SGR_EXTENDED_BACKGROUND_CODE = 48;
-const SGR_DEFAULT_BACKGROUND_CODE = 49;
+const SGR_EXTENDED_COLOR_END_CODES = new Map([
+	[38, 39],
+	[48, 49],
+	[58, 59],
+]);
 const SGR_COLOR_TYPE_ANSI_256 = 5;
 const SGR_COLOR_TYPE_TRUECOLOR = 2;
 const SGR_ANSI_256_FRAGMENT_LENGTH = 3;
@@ -135,7 +136,8 @@ function getSgrFragments(code) {
 			continue;
 		}
 
-		if (codeNumber === SGR_EXTENDED_FOREGROUND_CODE || codeNumber === SGR_EXTENDED_BACKGROUND_CODE) {
+		const extendedColorEndCode = SGR_EXTENDED_COLOR_END_CODES.get(codeNumber);
+		if (extendedColorEndCode !== undefined) {
 			// eslint-disable-next-line unicorn/prefer-number-coercion -- Same reason as above.
 			const colorType = Number.parseInt(rawCodes[index + 1], 10);
 			if (colorType === SGR_COLOR_TYPE_ANSI_256 && index + SGR_ANSI_256_LAST_PARAMETER_OFFSET < rawCodes.length) {
@@ -143,7 +145,7 @@ function getSgrFragments(code) {
 				fragments.push({
 					type: 'start',
 					code: openCode,
-					endCode: ansiStyles.color.ansi(codeNumber === SGR_EXTENDED_FOREGROUND_CODE ? SGR_DEFAULT_FOREGROUND_CODE : SGR_DEFAULT_BACKGROUND_CODE),
+					endCode: ansiStyles.color.ansi(extendedColorEndCode),
 				});
 				index += SGR_ANSI_256_FRAGMENT_LENGTH;
 				continue;
@@ -154,7 +156,7 @@ function getSgrFragments(code) {
 				fragments.push({
 					type: 'start',
 					code: openCode,
-					endCode: ansiStyles.color.ansi(codeNumber === SGR_EXTENDED_FOREGROUND_CODE ? SGR_DEFAULT_FOREGROUND_CODE : SGR_DEFAULT_BACKGROUND_CODE),
+					endCode: ansiStyles.color.ansi(extendedColorEndCode),
 				});
 				index += SGR_TRUECOLOR_FRAGMENT_LENGTH;
 				continue;
@@ -164,7 +166,7 @@ function getSgrFragments(code) {
 			fragments.push({
 				type: 'start',
 				code: openCode,
-				endCode: ansiStyles.color.ansi(codeNumber === SGR_EXTENDED_FOREGROUND_CODE ? SGR_DEFAULT_FOREGROUND_CODE : SGR_DEFAULT_BACKGROUND_CODE),
+				endCode: ansiStyles.color.ansi(extendedColorEndCode),
 			});
 			index++;
 			continue;
