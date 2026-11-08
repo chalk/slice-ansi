@@ -4,7 +4,6 @@ import assert from 'node:assert/strict';
 import chalk from 'chalk';
 import stripAnsi from 'strip-ansi';
 import stringWidth from 'string-width';
-import randomItem from 'random-item';
 import tokenizeAnsi from './tokenize-ansi.js';
 import sliceAnsi from './index.js';
 
@@ -17,6 +16,13 @@ const ANSI_BELL = '\u{7}';
 const ANSI_STRING_TERMINATOR = `${ESCAPE}\\`;
 const C1_OSC = '\u{9D}';
 const C1_STRING_TERMINATOR = '\u{9C}';
+
+// Use a fixed seed so randomized failures are reproducible.
+let randomSeed = 42;
+
+function randomItem(items) {
+	return items[createRandomInteger(items.length)];
+}
 
 function generate(string) {
 	const random1 = randomItem(['rock', 'paper', 'scissors']);
@@ -63,12 +69,7 @@ function stripOscHyperlinks(string) {
 			continue;
 		}
 
-		const uriStart = string.indexOf(';', index + hyperlinkPrefix.length);
-		if (uriStart === -1) {
-			break;
-		}
-
-		const hyperlinkEnd = findHyperlinkEnd(string, uriStart + 1);
+		const hyperlinkEnd = findHyperlinkEnd(string, index + hyperlinkPrefix.length);
 		if (hyperlinkEnd === -1) {
 			break;
 		}
@@ -124,7 +125,8 @@ function assertSlicesMatchPlainReference(plain, styled, maximumIndex = 6) {
 }
 
 function createRandomInteger(maximum) {
-	return Math.floor(Math.random() * maximum);
+	randomSeed = ((randomSeed * 1_664_525) + 1_013_904_223) % 0x1_00_00_00_00;
+	return Math.floor((randomSeed / 0x1_00_00_00_00) * maximum);
 }
 
 function createRandomVisibleText() {
@@ -196,7 +198,7 @@ test('main', () => {
 	assert.equal(JSON.stringify(sliceAnsi(fixture, 10, 20)), b);
 	assert.equal(JSON.stringify(sliceAnsi(fixture, 3, 20)), c);
 
-	const string = generate(1) + generate(2) + generate(3) + generate(4) + generate(5) + generate(6) + generate(7) + generate(8) + generate(9) + generate(10) + generate(11) + generate(12) + generate(13) + generate(14) + generate(15) + generate(1) + generate(2) + generate(3) + generate(4) + generate(5) + generate(6) + generate(7) + generate(8) + generate(9) + generate(10) + generate(11) + generate(12) + generate(13) + generate(14) + generate(15);
+	const string = Array.from({length: 30}, (_, index) => generate(index + 1)).join('');
 	const native = stripAnsi(string).slice(0, 55);
 	const ansi = stripAnsi(sliceAnsi(string, 0, 55));
 	assert.equal(native, ansi);
@@ -228,6 +230,16 @@ test('counts CRLF as zero width', () => {
 	assert.equal(sliceAnsi(input, 0, 1), 'A');
 	assert.equal(sliceAnsi(input, 1, 2), '\r\nB');
 	assert.equal(sliceAnsi(input, 2, 3), '');
+});
+
+test('keeps ANSI-split CRLF together at a zero-width boundary', () => {
+	const red = `${ESCAPE}[31m`;
+	const reset = `${ESCAPE}[39m`;
+	const input = `A\r${red}\nB${reset}`;
+
+	assert.equal(sliceAnsi(input, 0, 1), 'A');
+	assert.equal(sliceAnsi(input, 1, 2), `\r${red}\nB${reset}`);
+	assert.equal(sliceAnsi(input, 2), '');
 });
 
 test('does not split styled grapheme clusters with combining marks', () => {
@@ -296,7 +308,9 @@ test('weird null issue', () => {
 });
 
 test('supports true color escape sequences', () => {
-	assert.equal(sliceAnsi('\u{1B}[1m\u{1B}[48;2;255;255;255m\u{1B}[38;2;255;0;0municorn\u{1B}[39m\u{1B}[49m\u{1B}[22m', 0, 3), '\u{1B}[1m\u{1B}[48;2;255;255;255m\u{1B}[38;2;255;0;0muni\u{1B}[39m\u{1B}[49m\u{1B}[22m');
+	const open = '\u{1B}[1m\u{1B}[48;2;255;255;255m\u{1B}[38;2;255;0;0m';
+	const close = '\u{1B}[39m\u{1B}[49m\u{1B}[22m';
+	assert.equal(sliceAnsi(`${open}unicorn${close}`, 0, 3), `${open}uni${close}`);
 });
 
 for (const parameters of ['58;5;1', '58;5;0', '58;2;255;0;0', '58;2;1;2;3', '58:2::255:0:0']) {
@@ -328,6 +342,25 @@ test('supports C1 underline color sequences', () => {
 
 test('supports colon-delimited truecolor SGR syntax', () => {
 	assert.equal(sliceAnsi('\u{1B}[38:2:255:0:0mred\u{1B}[39m', 0, 1), '\u{1B}[38:2:255:0:0mr\u{1B}[39m');
+});
+
+test('treats omitted SGR parameters as resets', () => {
+	for (const prefix of [`${ESCAPE}[`, '\u{9B}']) {
+		assert.equal(sliceAnsi(`${prefix}1;32mA${prefix};31mBC`, 1, 2), `${prefix}31mB${ESCAPE}[39m`);
+		assert.equal(sliceAnsi(`${prefix}1;32mA${prefix}31;mBC`, 1, 2), 'B');
+		assert.equal(sliceAnsi(`${prefix}1;32mA${prefix}31;;4mBC`, 1, 2), `${prefix}4mB${ESCAPE}[24m`);
+	}
+});
+
+test('keeps styles following colon-delimited colors independent', () => {
+	for (const [color, close] of [[38, 39], [48, 49], [58, 59]]) {
+		const input = `${ESCAPE}[${color}:2::255:0:0;2;3;4;7mAB${ESCAPE}[${close}mC`;
+		const styles = `${ESCAPE}[2m${ESCAPE}[3m${ESCAPE}[4m${ESCAPE}[7m`;
+		const closingStyles = `${ESCAPE}[27m${ESCAPE}[24m${ESCAPE}[23m${ESCAPE}[22m`;
+
+		assert.equal(sliceAnsi(input, 1, 2), `${ESCAPE}[${color}:2::255:0:0m${styles}B${ESCAPE}[${close}m${closingStyles}`);
+		assert.equal(sliceAnsi(input, 2), `${styles}C${closingStyles}`);
+	}
 });
 
 // See https://github.com/chalk/slice-ansi/issues/24
@@ -412,6 +445,22 @@ test('omitted endSlice skips a wide grapheme when startSlice falls inside it', (
 
 test('can create empty slices', () => {
 	assert.equal(sliceAnsi('test', 0, 0), '');
+});
+
+test('returns empty for equal or reversed column ranges', () => {
+	for (const input of ['', 'abc', chalk.red('你好'), createHyperlink('abc', 'https://example.com'), `${ESCAPE}[31m`]) {
+		for (const [start, end] of [[0, 0], [1, 1], [2, 1], [20, 10]]) {
+			assert.equal(sliceAnsi(input, start, end), '');
+		}
+	}
+});
+
+test('assigns zero-width characters at a boundary to the following slice', () => {
+	const input = 'a\u{200B}b\u{200B}';
+	assert.equal(sliceAnsi(input, 0, 1), 'a');
+	assert.equal(sliceAnsi(input, 1, 2), '\u{200B}b');
+	assert.equal(sliceAnsi(input, 2), '\u{200B}');
+	assert.equal(sliceAnsi(input, 0, 1) + sliceAnsi(input, 1, 2) + sliceAnsi(input, 2), input);
 });
 
 test('slice links (issue #31)', () => {
@@ -563,6 +612,105 @@ test('keeps grapheme-safe boundaries with hyperlink tokens inserted at internal 
 			assertSlicesMatchPlainReference(plain, styled);
 		}
 	}
+});
+
+test('indexes successive ANSI-split graphemes by their full column widths', () => {
+	const input = `A${chalk.red('e')}\u{301}${createHyperlink('👨', 'https://example.com')}‍👩${chalk.blue('ᄀ')}ᅡB`;
+	const expectedSlices = [[0, 1, 'A'], [1, 2, 'e\u{301}'], [2, 4, '👨‍👩'], [4, 6, '가'], [6, 7, 'B']];
+
+	for (const [start, end, expected] of expectedSlices) {
+		assert.equal(stripForVisibleComparison(sliceAnsi(input, start, end)), expected);
+	}
+
+	assert.equal(stripForVisibleComparison(sliceAnsi(input, 0)), 'Ae\u{301}👨‍👩가B');
+});
+
+test('tokenizes ANSI-split text into complete graphemes', () => {
+	const input = `${chalk.red('e')}\u{301}${createHyperlink('👨', 'https://example.com')}‍👩B`;
+	const characters = tokenizeAnsi(input).filter(token => token.type === 'character');
+	assert.deepEqual(characters.map(({value, visibleWidth}) => [value, visibleWidth]), [['e\u{301}', 1], ['👨‍👩', 2], ['B', 1]]);
+	assert.deepEqual(tokenizeAnsi(input, {endCharacter: 1}).filter(token => token.type === 'character').map(token => token.value), ['e\u{301}']);
+});
+
+test('slices every column range across independently styled graphemes', () => {
+	const graphemes = [['A', 1], ['e\u{301}', 1], ['👨‍👩', 2], ['가', 2], ['🇮🇱', 2], ['B', 1]];
+	const plain = graphemes.map(([value]) => value).join('');
+	const styled = [...plain].map((scalar, index) => index % 2 === 0 ? chalk.red(scalar) : createHyperlink(scalar, 'https://example.com')).join('');
+
+	for (let start = 0; start <= 10; start++) {
+		for (let end = start; end <= 10; end++) {
+			let position = 0;
+			let expected = '';
+			for (const [value, width] of graphemes) {
+				if (position >= start && position + width <= end) {
+					expected += value;
+				}
+
+				position += width;
+			}
+
+			assert.equal(stripForVisibleComparison(sliceAnsi(styled, start, end)), expected, `slice(${start}, ${end})`);
+		}
+	}
+});
+
+test('preserves link and style transitions within a selected grapheme', () => {
+	const open = `${ESCAPE}]8;;https://example.com${ANSI_BELL}`;
+	const close = `${ESCAPE}]8;;${ANSI_BELL}`;
+	const red = `${ESCAPE}[31m`;
+	const reset = `${ESCAPE}[39m`;
+	const input = `${open}a${red}${close}\u{301}B${reset}`;
+
+	assert.equal(sliceAnsi(input, 0, 1), `${open}a${red}${close}\u{301}${reset}`);
+	assert.equal(sliceAnsi(input, 1, 2), `${red}B${reset}`);
+});
+
+test('inherits style and hyperlink transitions within a skipped wide grapheme', () => {
+	const red = `${ESCAPE}[31m`;
+	const reset = `${ESCAPE}[39m`;
+	const open = `${ESCAPE}]8;;https://example.com${ANSI_BELL}`;
+	const close = `${ESCAPE}]8;;${ANSI_BELL}`;
+
+	assert.equal(sliceAnsi(`👨${red}‍👩B${reset}`, 1, 3), `${red}B${reset}`);
+	assert.equal(sliceAnsi(`${red}👨${reset}‍👩B`, 1, 3), 'B');
+	assert.equal(sliceAnsi(`👨${open}‍👩B${close}`, 1, 3), `${open}B${close}`);
+	assert.equal(sliceAnsi(`${open}👨${close}‍👩B`, 1, 3), 'B');
+});
+
+test('discards empty links independently of pending style checkpoints', () => {
+	const open = `${ESCAPE}]8;;https://example.com${ANSI_BELL}`;
+	const otherOpen = `${ESCAPE}]8;;https://other.test${ANSI_BELL}`;
+	const close = `${ESCAPE}]8;;${ANSI_BELL}`;
+	const red = `${ESCAPE}[31m`;
+	const bold = `${ESCAPE}[1m`;
+	const transitions = [
+		`${open}${red}${close}${otherOpen}${bold}${close}`,
+		`${red}${open}${bold}${otherOpen}${close}`,
+		`${open}${red}${otherOpen}${bold}${open}${close}`,
+	];
+
+	for (const transition of transitions) {
+		const input = `A${transition}😀B`;
+		assert.equal(sliceAnsi(input, 0, 2), 'A');
+		assert.equal(sliceAnsi(input, 0, 3), `A${red}${bold}😀${ESCAPE}[22m${ESCAPE}[39m`);
+	}
+});
+
+test('rolls back hyperlink state together with output and styles', () => {
+	const open = `${ESCAPE}]8;;https://one.test${ANSI_BELL}`;
+	const otherOpen = `${ESCAPE}]8;;https://two.test${ANSI_BELL}`;
+	const close = `${ESCAPE}]8;;${ANSI_BELL}`;
+
+	for (const transition of [otherOpen, close, `${otherOpen}${close}`]) {
+		assert.equal(sliceAnsi(`${open}A${ESCAPE}[31m${transition}😀`, 0, 2), `${open}A${close}`);
+	}
+});
+
+test('keeps UTF-16 offsets when ANSI separates surrogate halves', () => {
+	const input = `\u{D800}${ESCAPE}[31m\u{DC00}ABC`;
+	assert.equal(stripForVisibleComparison(sliceAnsi(input, 0, 1)), '\u{10000}');
+	assert.equal(sliceAnsi(input, 1, 2), `${ESCAPE}[31mA${ESCAPE}[39m`);
+	assert.equal(stripForVisibleComparison(sliceAnsi(input, 0)), '\u{10000}ABC');
 });
 
 test('can slice across plain text and hyperlink boundaries', () => {
@@ -756,6 +904,14 @@ test('treats C1 APC control strings as non-visible control codes', () => {
 	assert.equal(sliceAnsi(input, 0, 1), 'A');
 });
 
+test('does not terminate non-OSC control strings at BEL', () => {
+	for (const prefix of [`${ESCAPE}P`, `${ESCAPE}X`, `${ESCAPE}^`, `${ESCAPE}_`, '\u{90}', '\u{98}', '\u{9E}', '\u{9F}']) {
+		for (const terminator of [ANSI_STRING_TERMINATOR, C1_STRING_TERMINATOR]) {
+			assert.equal(sliceAnsi(`${prefix}hidden${ANSI_BELL}payload${terminator}A`, 0, 1), 'A');
+		}
+	}
+});
+
 test('treats standalone ST control sequences as non-visible control codes', () => {
 	assert.equal(sliceAnsi('\u{1B}\\A', 0, 1), 'A');
 	assert.equal(sliceAnsi('\u{9C}A', 0, 1), 'A');
@@ -827,6 +983,16 @@ test('treats malformed OSC tail as non-visible', () => {
 	assert.equal(stripForVisibleComparison(sliceAnsi(input, 0)), 'link');
 });
 
+test('does not read hyperlink parameters beyond the OSC terminator', () => {
+	for (const prefix of [`${ESCAPE}]`, C1_OSC]) {
+		for (const terminator of [ANSI_BELL, ANSI_STRING_TERMINATOR, C1_STRING_TERMINATOR]) {
+			const malformedHyperlink = `${prefix}8;id=missing-uri${terminator}`;
+			assert.equal(sliceAnsi(`${malformedHyperlink}A;BC`, 0), 'A;BC');
+			assert.equal(sliceAnsi(`X${malformedHyperlink}A;BC`, 0), `X${malformedHyperlink}A;BC`);
+		}
+	}
+});
+
 test('does not leave a hyperlink open when a new open replaces an active one', () => {
 	const open1 = `${ESCAPE}]8;;https://one.test${ANSI_BELL}`;
 	const open2 = `${ESCAPE}]8;;https://two.test${ANSI_BELL}`;
@@ -838,7 +1004,7 @@ test('does not leave a hyperlink open when a new open replaces an active one', (
 	assert.equal(sliceAnsi(`${open1}a${open2}b${close}`, 0), `${open1}a${close}${open2}b${close}`);
 });
 
-test('adjusts pending SGR index when an open replaces an empty hyperlink', () => {
+test('discards styles before an excluded wide grapheme after replacing an empty hyperlink', () => {
 	const open1 = `${ESCAPE}]8;;https://a-very-long-url-one.test${ANSI_BELL}`;
 	const open2 = `${ESCAPE}]8;;https://two.test${ANSI_BELL}`;
 	const close = `${ESCAPE}]8;;${ANSI_BELL}`;

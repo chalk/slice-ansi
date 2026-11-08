@@ -1,23 +1,168 @@
 import tokenizeAnsi from './tokenize-ansi.js';
 
-function applySgrFragments(activeStyles, fragments) {
-	for (const fragment of fragments) {
-		// Each `break` below ends one fragment's `switch`, not the loop.
-		/* eslint-disable unicorn/no-break-in-nested-loop -- A `switch` dispatching one enum value. */
-		switch (fragment.type) {
-			case 'reset': {
-				activeStyles.clear();
+class SliceOutput {
+	#phase = 'before';
+	#styles = new Map();
+	#hyperlink;
+	#checkpoint;
+	#output = [];
+
+	#writeText(value) {
+		if (this.#phase === 'before') {
+			return;
+		}
+
+		this.#output.push(value);
+		this.#checkpoint = undefined;
+		if (this.#hyperlink?.phase === 'pending') {
+			this.#hyperlink = {phase: 'visible', token: this.#hyperlink.token};
+		}
+	}
+
+	#writeSgr(token, isPastEnd) {
+		const hasStart = token.fragments.some(fragment => fragment.type === 'start');
+		if (isPastEnd) {
+			const hasClosingEffect = token.fragments.some(({type, endCode}) => (type === 'reset' && this.#styles.size > 0) || (type === 'end' && this.#styles.has(endCode)));
+			if (hasStart || !hasClosingEffect) {
+				return;
+			}
+		}
+
+		if (hasStart && !this.#checkpoint && this.#phase === 'emitting') {
+			this.#checkpoint = {outputLength: this.#output.length, styles: new Map(this.#styles), hyperlink: this.#hyperlink};
+		}
+
+		this.#applySgrFragments(token.fragments);
+		if (this.#phase === 'emitting') {
+			this.#output.push(token.code);
+		}
+	}
+
+	#applySgrFragments(fragments) {
+		for (const fragment of fragments) {
+			// Each `break` below ends one fragment's `switch`, not the loop.
+			/* eslint-disable unicorn/no-break-in-nested-loop -- A `switch` dispatching one enum value. */
+			switch (fragment.type) {
+				case 'reset': {
+					this.#styles.clear();
+					break;
+				}
+
+				case 'end': {
+					this.#styles.delete(fragment.endCode);
+					break;
+				}
+
+				case 'start': {
+					this.#styles.delete(fragment.endCode);
+					this.#styles.set(fragment.endCode, fragment.code);
+					break;
+				}
+
+				default: {
+					break;
+				}
+			}
+			/* eslint-enable unicorn/no-break-in-nested-loop */
+		}
+	}
+
+	#openHyperlink(token) {
+		if (this.#phase === 'before') {
+			this.#hyperlink = {phase: 'inherited', token};
+			return;
+		}
+
+		this.#hyperlink = {phase: 'pending', token, outputIndex: this.#output.length};
+		this.#output.push(token.code);
+	}
+
+	#settleHyperlink() {
+		const hyperlink = this.#hyperlink;
+		if (!hyperlink) {
+			return;
+		}
+
+		if (hyperlink.phase === 'visible') {
+			this.#output.push(`${hyperlink.token.closePrefix}${hyperlink.token.terminator}`);
+		} else if (hyperlink.phase === 'pending') {
+			// Empty fragments preserve indexes, so discarding a link cannot move a pending SGR checkpoint.
+			this.#output[hyperlink.outputIndex] = '';
+		}
+
+		this.#hyperlink = undefined;
+	}
+
+	#writeHyperlink(token, isPastEnd) {
+		if (isPastEnd && (token.action !== 'close' || !this.#hyperlink)) {
+			return;
+		}
+
+		if (token.action === 'open') {
+			// OSC 8 has no nesting: a new open replaces the active link, so settle the previous one first.
+			this.#settleHyperlink();
+			this.#openHyperlink(token);
+			return;
+		}
+
+		if (this.#hyperlink?.phase === 'pending') {
+			this.#settleHyperlink();
+			return;
+		}
+
+		this.#hyperlink = undefined;
+		if (this.#phase === 'emitting') {
+			this.#output.push(token.code);
+		}
+	}
+
+	begin() {
+		if (this.#phase === 'emitting') {
+			return;
+		}
+
+		this.#phase = 'emitting';
+		// Spreading style values works on Node.js 22 without converting the iterator to an array.
+		this.#output.push(...this.#styles.values());
+		if (this.#hyperlink) {
+			this.#openHyperlink(this.#hyperlink.token);
+		}
+	}
+
+	write(token, isPastEnd = false) {
+		switch (token.type) {
+			case 'sgr': {
+				this.#writeSgr(token, isPastEnd);
 				break;
 			}
 
-			case 'end': {
-				activeStyles.delete(fragment.endCode);
+			case 'hyperlink': {
+				this.#writeHyperlink(token, isPastEnd);
 				break;
 			}
 
-			case 'start': {
-				activeStyles.delete(fragment.endCode);
-				activeStyles.set(fragment.endCode, fragment.code);
+			case 'control': {
+				if (!isPastEnd && this.#phase === 'emitting') {
+					this.#output.push(token.code);
+				}
+
+				break;
+			}
+
+			case 'text': {
+				this.#writeText(token.value);
+				break;
+			}
+
+			case 'character': {
+				if (token.parts) {
+					for (const part of token.parts) {
+						this.write(part);
+					}
+				} else {
+					this.#writeText(token.value);
+				}
+
 				break;
 			}
 
@@ -25,283 +170,63 @@ function applySgrFragments(activeStyles, fragments) {
 				break;
 			}
 		}
-		/* eslint-enable unicorn/no-break-in-nested-loop */
 	}
 
-	return activeStyles;
-}
-
-function undoAnsiCodes(activeStyles) {
-	// `Iterator#toArray` is newer than the Node.js 22 floor.
-	// eslint-disable-next-line unicorn/prefer-iterator-to-array
-	return [...activeStyles.keys()].toReversed().join('');
-}
-
-function closeHyperlink(hyperlinkToken) {
-	return `${hyperlinkToken.closePrefix}${hyperlinkToken.terminator}`;
-}
-
-function shouldIncludeSgrAfterEnd(token, activeStyles) {
-	let hasStartFragment = false;
-	let hasClosingEffect = false;
-
-	for (const fragment of token.fragments) {
-		if (fragment.type === 'start') {
-			hasStartFragment = true;
-			continue;
+	discardPending() {
+		if (this.#hyperlink?.phase !== 'visible') {
+			this.#settleHyperlink();
 		}
 
-		if (fragment.type === 'reset' && activeStyles.size > 0) {
-			hasClosingEffect = true;
-			continue;
-		}
-
-		if (fragment.type === 'end' && activeStyles.has(fragment.endCode)) {
-			hasClosingEffect = true;
-		}
-	}
-
-	return hasClosingEffect && !hasStartFragment;
-}
-
-function hasSgrStartFragment(token) {
-	return token.fragments.some(fragment => fragment.type === 'start');
-}
-
-function discardPendingHyperlink(state) {
-	if (
-		state.activeHyperlink
-		&& !state.activeHyperlinkHasVisibleText
-		&& state.activeHyperlinkOutputIndex !== undefined
-	) {
-		const openCodeLength = state.activeHyperlink.code.length;
-		state.returnValue = state.returnValue.slice(0, state.activeHyperlinkOutputIndex) + state.returnValue.slice(state.activeHyperlinkOutputIndex + openCodeLength);
-
-		if (
-			state.pendingSgrOutputIndex !== undefined
-			&& state.pendingSgrOutputIndex > state.activeHyperlinkOutputIndex
-		) {
-			state.pendingSgrOutputIndex -= openCodeLength;
-		}
-	}
-
-	state.activeHyperlink = undefined;
-	state.activeHyperlinkHasVisibleText = false;
-	state.activeHyperlinkOutputIndex = undefined;
-}
-
-function settleActiveHyperlink(state) {
-	if (state.activeHyperlinkHasVisibleText) {
-		state.returnValue += closeHyperlink(state.activeHyperlink);
-	} else {
-		discardPendingHyperlink(state);
-	}
-}
-
-function applySgrToken(state) {
-	if (
-		state.isPastEnd
-		&& !shouldIncludeSgrAfterEnd(state.token, state.activeStyles)
-	) {
-		return;
-	}
-
-	if (
-		state.include
-		&& hasSgrStartFragment(state.token)
-		&& state.pendingSgrOutputIndex === undefined
-	) {
-		state.pendingSgrOutputIndex = state.returnValue.length;
-		state.pendingSgrActiveStyles = new Map(state.activeStyles);
-	}
-
-	state.activeStyles = applySgrFragments(state.activeStyles, state.token.fragments);
-	if (state.include) {
-		state.returnValue += state.token.code;
-	}
-}
-
-function applyHyperlinkToken(state) {
-	if (
-		state.isPastEnd
-		&& (
-			state.token.action !== 'close'
-			|| !state.activeHyperlink
-		)
-	) {
-		return;
-	}
-
-	if (state.token.action === 'open') {
-		// OSC 8 has no nesting: a new open replaces the active link, so settle the previous one first.
-		if (state.activeHyperlink) {
-			settleActiveHyperlink(state);
-		}
-
-		state.activeHyperlink = state.token;
-		state.activeHyperlinkHasVisibleText = false;
-		state.activeHyperlinkOutputIndex = undefined;
-		if (state.include) {
-			state.activeHyperlinkOutputIndex = state.returnValue.length;
-		}
-	} else if (state.token.action === 'close') {
-		if (
-			state.include
-			&& state.activeHyperlink
-			&& !state.activeHyperlinkHasVisibleText
-		) {
-			discardPendingHyperlink(state);
+		if (!this.#checkpoint) {
 			return;
 		}
 
-		state.activeHyperlink = undefined;
-		state.activeHyperlinkHasVisibleText = false;
-		state.activeHyperlinkOutputIndex = undefined;
+		this.#output.length = this.#checkpoint.outputLength;
+		this.#styles = this.#checkpoint.styles;
+		this.#hyperlink = this.#checkpoint.hyperlink;
+		this.#checkpoint = undefined;
 	}
 
-	if (state.include) {
-		state.returnValue += state.token.code;
-	}
-}
-
-function applyControlToken(state) {
-	if (!state.isPastEnd && state.include) {
-		state.returnValue += state.token.code;
-	}
-}
-
-function applyCharacterToken(state) {
-	if (
-		!state.include
-		&& state.position >= state.start
-		&& !state.token.isGraphemeContinuation
-	) {
-		state.include = true;
-		// eslint-disable-next-line unicorn/prefer-iterator-to-array -- Same reason as in `undoAnsiCodes`.
-		state.returnValue = [...state.activeStyles.values()].join('');
-		if (state.activeHyperlink) {
-			state.activeHyperlinkOutputIndex = state.returnValue.length;
-			state.returnValue += state.activeHyperlink.code;
+	finish() {
+		if (this.#phase === 'before') {
+			return '';
 		}
+
+		this.#settleHyperlink();
+		// Disable active codes at the end.
+		// eslint-disable-next-line unicorn/prefer-iterator-to-array -- Same Node.js 22 floor as in `begin`.
+		this.#output.push(...[...this.#styles.keys()].toReversed());
+		return this.#output.join('');
 	}
-
-	if (state.include) {
-		state.returnValue += state.token.value;
-		state.pendingSgrOutputIndex = undefined;
-		state.pendingSgrActiveStyles = undefined;
-		if (state.activeHyperlink) {
-			state.activeHyperlinkHasVisibleText = true;
-		}
-	}
-
-	state.position += state.token.visibleWidth;
-}
-
-const tokenHandlers = new Map([
-	['sgr', applySgrToken],
-	['hyperlink', applyHyperlinkToken],
-	['control', applyControlToken],
-	['character', applyCharacterToken],
-]);
-
-function applyToken(state) {
-	tokenHandlers.get(state.token.type)?.(state);
-}
-
-function createHasContinuationAheadMap(tokens) {
-	const hasContinuationAhead = Array.from({length: tokens.length}, () => false);
-	let isNextCharacterContinuation = false;
-
-	for (let tokenIndex = tokens.length - 1; tokenIndex >= 0; tokenIndex--) {
-		const token = tokens[tokenIndex];
-		hasContinuationAhead[tokenIndex] = isNextCharacterContinuation;
-		if (token.type === 'character') {
-			isNextCharacterContinuation = Boolean(token.isGraphemeContinuation);
-		}
-	}
-
-	return hasContinuationAhead;
-}
-
-function isPastEndBoundary(token, position, end) {
-	if (end === undefined) {
-		return false;
-	}
-
-	// A zero-width character at `end` goes to the next slice, so `sliceAnsi(string, 0, n)` and `sliceAnsi(string, n)` do not both drop it.
-	if (position >= end) {
-		return true;
-	}
-
-	return token.type === 'character'
-		&& !token.isGraphemeContinuation
-		&& position + token.visibleWidth > end;
 }
 
 export default function sliceAnsi(string, start, end) {
-	const tokens = tokenizeAnsi(string, {endCharacter: end});
-	const hasContinuationAhead = createHasContinuationAheadMap(tokens);
-	const state = {
-		start,
-		token: undefined,
-		isPastEnd: false,
-		activeStyles: new Map(),
-		activeHyperlink: undefined,
-		activeHyperlinkHasVisibleText: false,
-		activeHyperlinkOutputIndex: undefined,
-		pendingSgrOutputIndex: undefined,
-		pendingSgrActiveStyles: undefined,
-		position: 0,
-		returnValue: '',
-		include: false,
-	};
-
-	for (const [tokenIndex, token] of tokens.entries()) {
-		let isPastEnd = isPastEndBoundary(token, state.position, end);
-		if (
-			isPastEnd
-			&& token.type !== 'character'
-			// This indexes a dense array by loop counter, not a lookup on a key bag.
-			// eslint-disable-next-line unicorn/no-computed-property-existence-check
-			&& hasContinuationAhead[tokenIndex]
-		) {
-			isPastEnd = false;
-		}
-
-		if (
-			isPastEnd
-			&& token.type === 'character'
-			&& !token.isGraphemeContinuation
-		) {
-			if (state.activeHyperlink && !state.activeHyperlinkHasVisibleText) {
-				discardPendingHyperlink(state);
-			}
-
-			if (state.pendingSgrOutputIndex !== undefined) {
-				state.returnValue = state.returnValue.slice(0, state.pendingSgrOutputIndex);
-				state.activeStyles = state.pendingSgrActiveStyles;
-				state.pendingSgrOutputIndex = undefined;
-				state.pendingSgrActiveStyles = undefined;
-			}
-
-			break;
-		}
-
-		state.token = token;
-		state.isPastEnd = isPastEnd;
-		applyToken(state);
-	}
-
-	if (!state.include) {
+	if (end <= start || string.length === 0) {
 		return '';
 	}
 
-	if (state.activeHyperlink) {
-		settleActiveHyperlink(state);
+	const output = new SliceOutput();
+	let position = 0;
+	for (const token of tokenizeAnsi(string, {endCharacter: end})) {
+		// A zero-width character at `end` goes to the next slice, so `sliceAnsi(string, 0, n)` and `sliceAnsi(string, n)` do not both drop it.
+		const isPastEnd = end !== undefined && position >= end;
+		if (token.type === 'character') {
+			if (isPastEnd || (end !== undefined && position + token.visibleWidth > end)) {
+				output.discardPending();
+				break;
+			}
+
+			if (position >= start) {
+				output.begin();
+			}
+
+			// Graphemes contain their internal controls, so boundaries need no separate continuation lookup.
+			output.write(token);
+			position += token.visibleWidth;
+		} else {
+			output.write(token, isPastEnd);
+		}
 	}
 
-	// Disable active codes at the end
-	state.returnValue += undoAnsiCodes(state.activeStyles);
-
-	return state.returnValue;
+	return output.finish();
 }

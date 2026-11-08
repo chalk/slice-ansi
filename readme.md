@@ -40,6 +40,7 @@ String with ANSI escape codes. Like one styled by [`chalk`](https://github.com/c
 Type: `number`
 
 Zero-based visible-column index at which to start the slice. Grapheme clusters (for example, emoji sequences and combining marks) are kept intact.
+If `startSlice` falls inside a grapheme cluster, that cluster is excluded.
 
 #### endSlice
 
@@ -47,6 +48,7 @@ Type: `number`
 
 Zero-based visible-column index at which to end the slice.
 If a full grapheme cluster would cross `endSlice`, it is excluded.
+Defaults to the end of the string.
 
 ## Related
 

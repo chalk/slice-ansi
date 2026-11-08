@@ -9,25 +9,24 @@ const C1_ST_CODE_POINT = 156;
 const C1_OSC_CODE_POINT = 157;
 const C1_PM_CODE_POINT = 158;
 const C1_APC_CODE_POINT = 159;
-const ESCAPES = new Set([
-	ESCAPE_CODE_POINT,
+const CONTROL_STRING_STARTS = new Set([
 	C1_DCS_CODE_POINT,
 	C1_SOS_CODE_POINT,
-	C1_CSI_CODE_POINT,
-	C1_ST_CODE_POINT,
 	C1_OSC_CODE_POINT,
 	C1_PM_CODE_POINT,
 	C1_APC_CODE_POINT,
+]);
+const ESCAPES = new Set([
+	ESCAPE_CODE_POINT,
+	C1_CSI_CODE_POINT,
+	C1_ST_CODE_POINT,
+	...CONTROL_STRING_STARTS,
 ]);
 
 const ESCAPE = '\u{1B}';
 const ANSI_BELL = '\u{7}';
 const ANSI_CSI = '[';
 const ANSI_OSC = ']';
-const ANSI_DCS = 'P';
-const ANSI_SOS = 'X';
-const ANSI_PM = '^';
-const ANSI_APC = '_';
 const ANSI_SGR_TERMINATOR = 'm';
 const ANSI_OSC_TERMINATOR = '\\';
 const ANSI_STRING_TERMINATOR = `${ESCAPE}${ANSI_OSC_TERMINATOR}`;
@@ -35,13 +34,7 @@ const C1_OSC = '\u{9D}';
 const C1_STRING_TERMINATOR = '\u{9C}';
 const ANSI_HYPERLINK_ESC_PREFIX = `${ESCAPE}${ANSI_OSC}8;`;
 const ANSI_HYPERLINK_C1_PREFIX = `${C1_OSC}8;`;
-const ANSI_HYPERLINK_ESC_CLOSE = `${ANSI_HYPERLINK_ESC_PREFIX};`;
-const ANSI_HYPERLINK_C1_CLOSE = `${ANSI_HYPERLINK_C1_PREFIX};`;
 
-const CODE_POINT_0 = '0'.codePointAt(0);
-const CODE_POINT_9 = '9'.codePointAt(0);
-const CODE_POINT_SEMICOLON = ';'.codePointAt(0);
-const CODE_POINT_COLON = ':'.codePointAt(0);
 // ECMA-48 CSI format: parameter bytes 0x30-0x3F, intermediates 0x20-0x2F, final 0x40-0x7E.
 const CODE_POINT_CSI_PARAMETER_START = '0'.codePointAt(0);
 const CODE_POINT_CSI_PARAMETER_END = '?'.codePointAt(0);
@@ -55,25 +48,15 @@ const SGR_EXTENDED_COLOR_END_CODES = new Map([
 	[48, 49],
 	[58, 59],
 ]);
-const SGR_COLOR_TYPE_ANSI_256 = 5;
-const SGR_COLOR_TYPE_TRUECOLOR = 2;
-const SGR_ANSI_256_FRAGMENT_LENGTH = 3;
-const SGR_TRUECOLOR_FRAGMENT_LENGTH = 5;
-const SGR_ANSI_256_LAST_PARAMETER_OFFSET = 2;
-const SGR_TRUECOLOR_LAST_PARAMETER_OFFSET = 4;
+const SGR_COLOR_LENGTHS = new Map([
+	[5, 3],
+	[2, 5],
+]);
 const GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, {granularity: 'grapheme'});
 
 const endCodeNumbers = new Set();
 for (const [, end] of ansiStyles.codes) {
 	endCodeNumbers.add(end);
-}
-
-function isSgrParameterCharacter(codePoint) {
-	return (
-		(codePoint >= CODE_POINT_0 && codePoint <= CODE_POINT_9)
-		|| codePoint === CODE_POINT_SEMICOLON
-		|| codePoint === CODE_POINT_COLON
-	);
 }
 
 function isCsiParameterCharacter(codePoint) {
@@ -109,22 +92,12 @@ function createSgrCode(prefix, values) {
 function getSgrFragments(code) {
 	const fragments = [];
 	const sgrPrefix = getSgrPrefix(code);
-	let parameterString;
-
-	if (code.startsWith(`${ESCAPE}${ANSI_CSI}`)) {
-		parameterString = code.slice(2, -1);
-	} else if (code.startsWith('\u{9B}')) {
-		parameterString = code.slice(1, -1);
-	} else {
-		return fragments;
-	}
-
-	const rawCodes = parameterString.length === 0 ? [String(SGR_RESET_CODE)] : parameterString.split(';');
+	const rawCodes = code.slice(sgrPrefix.length, -1).split(';');
 	let index = 0;
 	while (index < rawCodes.length) {
-		// SGR parameters come from untrusted input, and `parseInt` with radix 10 differs from `Number()` on partial parses such as `1e3` or `0x1f`, which must not be read as a color code.
+		// Read the leading numeric parameter while preserving colon-delimited subparameters in the emitted code.
 		// eslint-disable-next-line unicorn/prefer-number-coercion
-		const codeNumber = Number.parseInt(rawCodes[index], 10);
+		const codeNumber = Number.parseInt(rawCodes[index] || '0', 10);
 		if (Number.isNaN(codeNumber)) {
 			index++;
 			continue;
@@ -132,42 +105,6 @@ function getSgrFragments(code) {
 
 		if (codeNumber === SGR_RESET_CODE) {
 			fragments.push({type: 'reset'});
-			index++;
-			continue;
-		}
-
-		const extendedColorEndCode = SGR_EXTENDED_COLOR_END_CODES.get(codeNumber);
-		if (extendedColorEndCode !== undefined) {
-			// eslint-disable-next-line unicorn/prefer-number-coercion -- Same reason as above.
-			const colorType = Number.parseInt(rawCodes[index + 1], 10);
-			if (colorType === SGR_COLOR_TYPE_ANSI_256 && index + SGR_ANSI_256_LAST_PARAMETER_OFFSET < rawCodes.length) {
-				const openCode = createSgrCode(sgrPrefix, rawCodes.slice(index, index + SGR_ANSI_256_FRAGMENT_LENGTH));
-				fragments.push({
-					type: 'start',
-					code: openCode,
-					endCode: ansiStyles.color.ansi(extendedColorEndCode),
-				});
-				index += SGR_ANSI_256_FRAGMENT_LENGTH;
-				continue;
-			}
-
-			if (colorType === SGR_COLOR_TYPE_TRUECOLOR && index + SGR_TRUECOLOR_LAST_PARAMETER_OFFSET < rawCodes.length) {
-				const openCode = createSgrCode(sgrPrefix, rawCodes.slice(index, index + SGR_TRUECOLOR_FRAGMENT_LENGTH));
-				fragments.push({
-					type: 'start',
-					code: openCode,
-					endCode: ansiStyles.color.ansi(extendedColorEndCode),
-				});
-				index += SGR_TRUECOLOR_FRAGMENT_LENGTH;
-				continue;
-			}
-
-			const openCode = createSgrCode(sgrPrefix, [rawCodes[index]]);
-			fragments.push({
-				type: 'start',
-				code: openCode,
-				endCode: ansiStyles.color.ansi(extendedColorEndCode),
-			});
 			index++;
 			continue;
 		}
@@ -181,25 +118,25 @@ function getSgrFragments(code) {
 			continue;
 		}
 
-		const mappedEndCode = ansiStyles.codes.get(codeNumber);
-		if (mappedEndCode !== undefined) {
-			const openCode = createSgrCode(sgrPrefix, [rawCodes[index]]);
-			fragments.push({
-				type: 'start',
-				code: openCode,
-				endCode: ansiStyles.color.ansi(mappedEndCode),
-			});
-			index++;
-			continue;
+		const extendedColorEndCode = SGR_EXTENDED_COLOR_END_CODES.get(codeNumber);
+		let fragmentLength = 1;
+		if (extendedColorEndCode !== undefined && !rawCodes[index].includes(':')) {
+			// A colon-delimited color is already complete; only semicolon-delimited colors consume subsequent parameters.
+			// eslint-disable-next-line unicorn/prefer-number-coercion -- Same reason as above.
+			const colorType = Number.parseInt(rawCodes[index + 1], 10);
+			const colorLength = SGR_COLOR_LENGTHS.get(colorType);
+			if (colorLength !== undefined && index + colorLength <= rawCodes.length) {
+				fragmentLength = colorLength;
+			}
 		}
 
-		const openCode = createSgrCode(sgrPrefix, [rawCodes[index]]);
+		const endCode = extendedColorEndCode ?? ansiStyles.codes.get(codeNumber);
 		fragments.push({
 			type: 'start',
-			code: openCode,
-			endCode: ansiStyles.reset.open,
+			code: createSgrCode(sgrPrefix, rawCodes.slice(index, index + fragmentLength)),
+			endCode: endCode === undefined ? ansiStyles.reset.open : ansiStyles.color.ansi(endCode),
 		});
-		index++;
+		index += fragmentLength;
 	}
 
 	if (fragments.length === 0) {
@@ -225,13 +162,12 @@ function parseCsiCode(string, index) {
 		return;
 	}
 
-	let hasCanonicalSgrParameters = true;
 	for (let sequenceIndex = sequenceStartIndex; sequenceIndex < string.length; sequenceIndex++) {
 		const codePoint = string.codePointAt(sequenceIndex);
 
 		if (isCsiFinalCharacter(codePoint)) {
 			const code = string.slice(index, sequenceIndex + 1);
-			if (!hasCanonicalSgrParameters || string[sequenceIndex] !== ANSI_SGR_TERMINATOR) {
+			if (string[sequenceIndex] !== ANSI_SGR_TERMINATOR || !/^[\d:;]*$/v.test(string.slice(sequenceStartIndex, sequenceIndex))) {
 				return createControlParseResult(code, sequenceIndex + 1);
 			}
 
@@ -245,16 +181,7 @@ function parseCsiCode(string, index) {
 			};
 		}
 
-		if (isCsiParameterCharacter(codePoint)) {
-			if (!isSgrParameterCharacter(codePoint)) {
-				hasCanonicalSgrParameters = false;
-			}
-
-			continue;
-		}
-
-		if (isCsiIntermediateCharacter(codePoint)) {
-			hasCanonicalSgrParameters = false;
+		if (isCsiParameterCharacter(codePoint) || isCsiIntermediateCharacter(codePoint)) {
 			continue;
 		}
 
@@ -265,160 +192,61 @@ function parseCsiCode(string, index) {
 	return createControlParseResult(string.slice(index), string.length);
 }
 
-function parseHyperlinkCode(string, index) {
-	let hyperlinkPrefix;
-	let hyperlinkClose;
-	const codePoint = string.codePointAt(index);
-
-	if (
-		codePoint === ESCAPE_CODE_POINT
-		&& string.startsWith(ANSI_HYPERLINK_ESC_PREFIX, index)
-	) {
-		hyperlinkPrefix = ANSI_HYPERLINK_ESC_PREFIX;
-		hyperlinkClose = ANSI_HYPERLINK_ESC_CLOSE;
-	} else if (
-		codePoint === C1_OSC_CODE_POINT
-		&& string.startsWith(ANSI_HYPERLINK_C1_PREFIX, index)
-	) {
-		hyperlinkPrefix = ANSI_HYPERLINK_C1_PREFIX;
-		hyperlinkClose = ANSI_HYPERLINK_C1_CLOSE;
-	} else {
-		return;
+function createControlStringParseResult(string, index, endIndex, terminator) {
+	const code = string.slice(index, endIndex);
+	const hyperlinkPrefix = code.startsWith(ANSI_HYPERLINK_ESC_PREFIX) ? ANSI_HYPERLINK_ESC_PREFIX : ANSI_HYPERLINK_C1_PREFIX;
+	if (!code.startsWith(hyperlinkPrefix)) {
+		return createControlParseResult(code, endIndex);
 	}
 
-	const uriStart = string.indexOf(';', index + hyperlinkPrefix.length);
-	if (uriStart === -1) {
-		return createControlParseResult(string.slice(index), string.length);
+	const uriStart = code.indexOf(';', hyperlinkPrefix.length);
+	const contentEnd = code.length - terminator.length;
+
+	if (uriStart === -1 || uriStart >= contentEnd) {
+		return createControlParseResult(code, endIndex);
 	}
 
-	for (let sequenceIndex = uriStart + 1; sequenceIndex < string.length; sequenceIndex++) {
-		const character = string[sequenceIndex];
-
-		if (character === ANSI_BELL) {
-			const code = string.slice(index, sequenceIndex + 1);
-			const action = sequenceIndex === uriStart + 1 ? 'close' : 'open';
-			return {
-				token: {
-					type: 'hyperlink',
-					code,
-					action,
-					closePrefix: hyperlinkClose,
-					terminator: ANSI_BELL,
-				},
-				endIndex: sequenceIndex + 1,
-			};
-		}
-
-		if (
-			character === ESCAPE
-			&& string[sequenceIndex + 1] === ANSI_OSC_TERMINATOR
-		) {
-			const code = string.slice(index, sequenceIndex + 2);
-			const action = sequenceIndex === uriStart + 1 ? 'close' : 'open';
-			return {
-				token: {
-					type: 'hyperlink',
-					code,
-					action,
-					closePrefix: hyperlinkClose,
-					terminator: ANSI_STRING_TERMINATOR,
-				},
-				endIndex: sequenceIndex + 2,
-			};
-		}
-
-		if (character === C1_STRING_TERMINATOR) {
-			const code = string.slice(index, sequenceIndex + 1);
-			const action = sequenceIndex === uriStart + 1 ? 'close' : 'open';
-			return {
-				token: {
-					type: 'hyperlink',
-					code,
-					action,
-					closePrefix: hyperlinkClose,
-					terminator: C1_STRING_TERMINATOR,
-				},
-				endIndex: sequenceIndex + 1,
-			};
-		}
-	}
-
-	return createControlParseResult(string.slice(index), string.length);
+	return {
+		token: {
+			type: 'hyperlink',
+			code,
+			action: uriStart + 1 === contentEnd ? 'close' : 'open',
+			closePrefix: `${hyperlinkPrefix};`,
+			terminator,
+		},
+		endIndex,
+	};
 }
 
 function parseControlStringCode(string, index) {
 	const codePoint = string.codePointAt(index);
-	let sequenceStartIndex;
-	let isBellTerminatorSupported = false;
+	// ESC followed by a byte from 0x40 to 0x5F is the 7-bit representation of the corresponding C1 control.
+	const command = codePoint === ESCAPE_CODE_POINT ? string.codePointAt(index + 1) + 0x40 : codePoint;
+	const sequenceStartIndex = index + (codePoint === ESCAPE_CODE_POINT ? 2 : 1);
 
-	switch (codePoint) {
-		case ESCAPE_CODE_POINT: {
-			const command = string[index + 1];
-			switch (command) {
-				case ANSI_OSC: {
-					// OSC accepts ST (ECMA-48) and BEL (xterm compatibility extension).
-					sequenceStartIndex = index + 2;
-					isBellTerminatorSupported = true;
-					break;
-				}
+	if (command === C1_ST_CODE_POINT) {
+		return createControlParseResult(string.slice(index, sequenceStartIndex), sequenceStartIndex);
+	}
 
-				case ANSI_DCS:
-				case ANSI_SOS:
-				case ANSI_PM:
-				case ANSI_APC: {
-					sequenceStartIndex = index + 2;
-					break;
-				}
-
-				case ANSI_OSC_TERMINATOR: {
-					return createControlParseResult(ANSI_STRING_TERMINATOR, index + 2);
-				}
-
-				default: {
-					return;
-				}
-			}
-
-			break;
-		}
-
-		case C1_OSC_CODE_POINT: {
-			sequenceStartIndex = index + 1;
-			isBellTerminatorSupported = true;
-			break;
-		}
-
-		case C1_DCS_CODE_POINT:
-		case C1_SOS_CODE_POINT:
-		case C1_PM_CODE_POINT:
-		case C1_APC_CODE_POINT: {
-			sequenceStartIndex = index + 1;
-			break;
-		}
-
-		case C1_ST_CODE_POINT: {
-			return createControlParseResult(C1_STRING_TERMINATOR, index + 1);
-		}
-
-		default: {
-			return;
-		}
+	if (!CONTROL_STRING_STARTS.has(command)) {
+		return;
 	}
 
 	for (let sequenceIndex = sequenceStartIndex; sequenceIndex < string.length; sequenceIndex++) {
-		if (isBellTerminatorSupported && string[sequenceIndex] === ANSI_BELL) {
-			return createControlParseResult(string.slice(index, sequenceIndex + 1), sequenceIndex + 1);
+		// OSC accepts ST (ECMA-48) and BEL (xterm compatibility extension).
+		if (command === C1_OSC_CODE_POINT && string[sequenceIndex] === ANSI_BELL) {
+			return createControlStringParseResult(string, index, sequenceIndex + 1, ANSI_BELL);
 		}
 
 		if (
 			string[sequenceIndex] === ESCAPE
 			&& string[sequenceIndex + 1] === ANSI_OSC_TERMINATOR
 		) {
-			return createControlParseResult(string.slice(index, sequenceIndex + 2), sequenceIndex + 2);
+			return createControlStringParseResult(string, index, sequenceIndex + 2, ANSI_STRING_TERMINATOR);
 		}
 
 		if (string[sequenceIndex] === C1_STRING_TERMINATOR) {
-			return createControlParseResult(string.slice(index, sequenceIndex + 1), sequenceIndex + 1);
+			return createControlStringParseResult(string, index, sequenceIndex + 1, C1_STRING_TERMINATOR);
 		}
 	}
 
@@ -426,18 +254,10 @@ function parseControlStringCode(string, index) {
 }
 
 function parseAnsiCode(string, index) {
-	const codePoint = string.codePointAt(index);
-	if (codePoint === ESCAPE_CODE_POINT || codePoint === C1_OSC_CODE_POINT) {
-		const hyperlinkCode = parseHyperlinkCode(string, index);
-		if (hyperlinkCode) {
-			return hyperlinkCode;
-		}
-	}
-
 	return parseControlStringCode(string, index) || parseCsiCode(string, index);
 }
 
-function appendTrailingAnsiTokens(string, index, tokens) {
+function appendAnsiTokens(string, index, tokens) {
 	while (index < string.length) {
 		const nextCodePoint = string.codePointAt(index);
 		if (!ESCAPES.has(nextCodePoint)) {
@@ -457,7 +277,7 @@ function appendTrailingAnsiTokens(string, index, tokens) {
 }
 
 // Columns come from `string-width`, so a slice is never wider than what `string-width` measures for it.
-function parseCharacterTokenWithRawSegmentation(string, index, graphemeSegments) {
+function parseCharacterTokenWithRawSegmentation(index, graphemeSegments) {
 	const segment = graphemeSegments.containing(index);
 	if (!segment || segment.index !== index) {
 		return;
@@ -469,90 +289,20 @@ function parseCharacterTokenWithRawSegmentation(string, index, graphemeSegments)
 			// Intentionally preserve UAX29 behavior (GB3): CRLF is one grapheme cluster.
 			value: segment.segment,
 			visibleWidth: stringWidth(segment.segment),
-			isGraphemeContinuation: false,
 		},
 		endIndex: index + segment.segment.length,
 	};
 }
 
-function collectVisibleCharacters(string) {
-	const visibleCharacters = [];
-	let index = 0;
-
-	while (index < string.length) {
-		const codePoint = string.codePointAt(index);
-		if (ESCAPES.has(codePoint)) {
-			const code = parseAnsiCode(string, index);
-			if (code) {
-				index = code.endIndex;
-				continue;
-			}
-		}
-
-		const value = String.fromCodePoint(codePoint);
-		visibleCharacters.push({
-			value,
-			visibleWidth: 1,
-			isGraphemeContinuation: false,
-		});
-		index += value.length;
-	}
-
-	return visibleCharacters;
-}
-
-// The first code point of a grapheme carries the width of the whole grapheme, and the rest take no columns, so a grapheme is never split across a slice boundary.
-function applyGraphemeMetadata(visibleCharacters) {
-	if (visibleCharacters.length === 0) {
-		return;
-	}
-
-	const visibleString = visibleCharacters.map(({value}) => value).join('');
-	const scalarOffsets = [];
-	let scalarOffset = 0;
-
-	for (const visibleCharacter of visibleCharacters) {
-		scalarOffsets.push(scalarOffset);
-		scalarOffset += visibleCharacter.value.length;
-	}
-
-	let scalarIndex = 0;
-	for (const segment of GRAPHEME_SEGMENTER.segment(visibleString)) {
-		while (
-			scalarIndex < visibleCharacters.length
-			&& scalarOffsets[scalarIndex] < segment.index
-		) {
-			scalarIndex++;
-		}
-
-		let graphemeIndex = scalarIndex;
-		let isFirstInGrapheme = true;
-		while (
-			graphemeIndex < visibleCharacters.length
-			&& scalarOffsets[graphemeIndex] < segment.index + segment.segment.length
-		) {
-			visibleCharacters[graphemeIndex].visibleWidth = isFirstInGrapheme ? stringWidth(segment.segment) : 0;
-			visibleCharacters[graphemeIndex].isGraphemeContinuation = !isFirstInGrapheme;
-			isFirstInGrapheme = false;
-			graphemeIndex++;
-		}
-
-		scalarIndex = graphemeIndex;
-	}
-}
-
-// Slow path for when ANSI codes sit inside a grapheme, for example between a letter and its combining mark. It segments the text with the ANSI codes removed, and then emits one token per code point.
+// Each grapheme owns its text and internal ANSI tokens, so it can be included or excluded as a whole without tracking scalar continuations.
+// Slow path for when ANSI codes sit inside a grapheme, for example between a letter and its combining mark. It segments the text with the ANSI codes removed, and then groups the original tokens by grapheme.
 function tokenizeAnsiWithVisibleSegmentation(string, {endCharacter = Infinity} = {}) {
 	const tokens = [];
-	const visibleCharacters = collectVisibleCharacters(string);
-	applyGraphemeMetadata(visibleCharacters);
-
+	let visibleString = '';
 	let index = 0;
-	let visibleCharacterIndex = 0;
-	let visibleCount = 0;
+
 	while (index < string.length) {
 		const codePoint = string.codePointAt(index);
-
 		if (ESCAPES.has(codePoint)) {
 			const code = parseAnsiCode(string, index);
 			if (code) {
@@ -563,81 +313,53 @@ function tokenizeAnsiWithVisibleSegmentation(string, {endCharacter = Infinity} =
 		}
 
 		const value = String.fromCodePoint(codePoint);
-		// Always defined, as `collectVisibleCharacters` walks the same code points and skips the same ANSI codes.
-		const visibleCharacter = visibleCharacters[visibleCharacterIndex];
-		const token = {
-			type: 'character',
-			value,
-			visibleWidth: visibleCharacter.visibleWidth,
-			isGraphemeContinuation: visibleCharacter.isGraphemeContinuation,
-		};
-
-		tokens.push(token);
+		// Reuse the original tokens for segmentation and output so ANSI codes are parsed only once.
+		visibleString += value;
+		tokens.push({type: 'text', value, visibleEnd: visibleString.length});
 		index += value.length;
-		visibleCharacterIndex++;
-		visibleCount += token.visibleWidth;
-
-		if (visibleCount < endCharacter) {
-			continue;
-		}
-
-		const nextVisibleCharacter = visibleCharacters[visibleCharacterIndex];
-		if (
-			!nextVisibleCharacter
-			|| !nextVisibleCharacter.isGraphemeContinuation
-		) {
-			index = appendTrailingAnsiTokens(string, index, tokens);
-			break;
-		}
 	}
 
-	return tokens;
+	const graphemes = [];
+	let tokenIndex = 0;
+	let visibleCount = 0;
+
+	for (const {segment, index: segmentIndex} of GRAPHEME_SEGMENTER.segment(visibleString)) {
+		while (tokens[tokenIndex].type !== 'text') {
+			graphemes.push(tokens[tokenIndex]);
+			tokenIndex++;
+		}
+
+		if (segmentIndex > 0 && visibleCount >= endCharacter) {
+			return graphemes;
+		}
+
+		const startIndex = tokenIndex;
+		const visibleEnd = segmentIndex + segment.length;
+		do {
+			tokenIndex++;
+		} while (tokens[tokenIndex - 1].visibleEnd !== visibleEnd);
+
+		const visibleWidth = stringWidth(segment);
+		graphemes.push({
+			type: 'character',
+			value: segment,
+			visibleWidth,
+			parts: tokens.slice(startIndex, tokenIndex),
+		});
+		visibleCount += visibleWidth;
+	}
+
+	while (tokenIndex < tokens.length) {
+		graphemes.push(tokens[tokenIndex]);
+		tokenIndex++;
+	}
+
+	return graphemes;
 }
 
 function areValuesInSameGrapheme(leftValue, rightValue) {
-	const pair = `${leftValue}${rightValue}`;
-	const splitIndex = leftValue.length;
-
-	for (const segment of GRAPHEME_SEGMENTER.segment(pair)) {
-		if (segment.index === splitIndex) {
-			return false;
-		}
-
-		if (segment.index > splitIndex) {
-			return true;
-		}
-	}
-
-	return true;
-}
-
-function hasAnsiSplitContinuationAhead(string, startIndex, previousVisibleValue, graphemeSegments) {
-	if (!previousVisibleValue) {
-		return false;
-	}
-
-	let index = startIndex;
-	let hasAnsiCode = false;
-	while (index < string.length) {
-		const codePoint = string.codePointAt(index);
-		if (ESCAPES.has(codePoint)) {
-			const code = parseAnsiCode(string, index);
-			if (code) {
-				hasAnsiCode = true;
-				index = code.endIndex;
-				continue;
-			}
-		}
-
-		if (!hasAnsiCode) {
-			return false;
-		}
-
-		const characterToken = parseCharacterTokenWithRawSegmentation(string, index, graphemeSegments);
-		return characterToken ? areValuesInSameGrapheme(previousVisibleValue, characterToken.token.value) : true;
-	}
-
-	return false;
+	const segment = GRAPHEME_SEGMENTER.segment(leftValue + rightValue).containing(leftValue.length);
+	return segment.index < leftValue.length;
 }
 
 // Fast path that tokenizes one grapheme at a time. It falls back to `tokenizeAnsiWithVisibleSegmentation` when an ANSI code splits a grapheme.
@@ -647,47 +369,28 @@ export default function tokenizeAnsi(string, {endCharacter = Infinity} = {}) {
 
 	let index = 0;
 	let visibleCount = 0;
-	let previousVisibleValue;
-	let hasAnsiSinceLastVisible = false;
+	let previousCharacter;
 	while (index < string.length) {
-		const codePoint = string.codePointAt(index);
-
-		if (ESCAPES.has(codePoint)) {
-			const code = parseAnsiCode(string, index);
-			if (code) {
-				tokens.push(code.token);
-				index = code.endIndex;
-				hasAnsiSinceLastVisible = true;
-				continue;
-			}
+		index = appendAnsiTokens(string, index, tokens);
+		if (index === string.length) {
+			break;
 		}
 
-		const characterToken = parseCharacterTokenWithRawSegmentation(string, index, graphemeSegments);
-		if (!characterToken) {
+		const characterToken = parseCharacterTokenWithRawSegmentation(index, graphemeSegments);
+		if (!characterToken || (previousCharacter
+			&& index > previousCharacter.endIndex
+			&& areValuesInSameGrapheme(previousCharacter.token.value, characterToken.token.value))) {
 			return tokenizeAnsiWithVisibleSegmentation(string, {endCharacter});
 		}
 
-		const isGraphemeSplitByAnsi = hasAnsiSinceLastVisible
-			&& previousVisibleValue
-			&& areValuesInSameGrapheme(previousVisibleValue, characterToken.token.value);
-		if (isGraphemeSplitByAnsi) {
-			return tokenizeAnsiWithVisibleSegmentation(string, {endCharacter});
+		if (previousCharacter && visibleCount >= endCharacter) {
+			break;
 		}
 
 		tokens.push(characterToken.token);
 		index = characterToken.endIndex;
 		visibleCount += characterToken.token.visibleWidth;
-		hasAnsiSinceLastVisible = false;
-		previousVisibleValue = characterToken.token.value;
-
-		if (visibleCount >= endCharacter) {
-			if (hasAnsiSplitContinuationAhead(string, index, previousVisibleValue, graphemeSegments)) {
-				return tokenizeAnsiWithVisibleSegmentation(string, {endCharacter});
-			}
-
-			index = appendTrailingAnsiTokens(string, index, tokens);
-			break;
-		}
+		previousCharacter = characterToken;
 	}
 
 	return tokens;
